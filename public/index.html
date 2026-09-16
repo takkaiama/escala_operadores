@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Escala BIOTEC</title>
+  <link rel="stylesheet" href="style.css?v=5.1.0" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand-block">
+        <div class="brand-mark">B</div>
+        <div>
+          <h1>Escala BIOTEC</h1>
+          <p>Motoristas e operadores com escala original + ajustes preservados</p>
+        </div>
+      </div>
+      <div class="date-controls">
+        <select id="mes"></select>
+        <input id="ano" type="number" min="2020" max="2100" />
+        <button id="btnHoje" class="btn dark">Mês atual</button>
+      </div>
+    </header>
+
+    <nav class="main-tabs">
+      <button class="main-tab active" data-category="MOTORISTA">
+        <span>Motoristas</span><small>regime 23 / 7</small>
+      </button>
+      <button class="main-tab" data-category="OPERADOR">
+        <span>Operadores</span><small>Skidder · Feller · PC · Picador — 24 / 6</small>
+      </button>
+    </nav>
+
+    <section class="toolbar">
+      <div class="search-wrap">
+        <span>⌕</span>
+        <input id="busca" type="search" placeholder="Pesquisar colaborador..." />
+      </div>
+
+      <div id="roleFilters" class="role-filters hidden">
+        <button class="role-pill active" data-role="">Todos</button>
+        <button class="role-pill" data-role="SKIDDER">Skidder</button>
+        <button class="role-pill" data-role="FELLER">Feller</button>
+        <button class="role-pill" data-role="PC">PC</button>
+        <button class="role-pill" data-role="PICADOR">Picador</button>
+      </div>
+
+      <label class="toggle-inline">
+        <input id="somenteAlterados" type="checkbox" />
+        <span>Somente alterados</span>
+      </label>
+
+      <div class="toolbar-actions">
+        <button id="btnNovo" class="btn outline">+ Colaborador</button>
+        <button id="btnFerias" class="btn outline">Férias</button>
+      </div>
+    </section>
+
+    <section id="summary" class="summary-grid"></section>
+    <section id="alertas" class="alerts"></section>
+
+    <section class="legend-bar">
+      <span><i class="legend-dot saida"></i>S = saída / início da folga</span>
+      <span><i class="legend-dot folga"></i>Folga / férias</span>
+      <span><i class="legend-dot retorno"></i>R = retorno</span>
+      <span><i class="legend-corner"></i>Canto = marcação original quando houve ajuste</span>
+      <span><i class="legend-change"></i>Borda = data modificada</span>
+    </section>
+
+    <main class="calendar-card">
+      <div class="table-wrap">
+        <table id="tabelaEscala"></table>
+      </div>
+    </main>
+  </div>
+
+  <div id="modalAjuste" class="modal-backdrop hidden" aria-hidden="true">
+    <div class="modal wide">
+      <div class="modal-head">
+        <div>
+          <h2>Ajustar ciclo</h2>
+          <p id="ajusteNome"></p>
+        </div>
+        <button class="icon-close" data-close="modalAjuste">×</button>
+      </div>
+      <div class="modal-body">
+        <label>Ciclo original</label>
+        <select id="ajusteCiclo"></select>
+
+        <div class="compare-grid">
+          <div class="compare-box original">
+            <span>ORIGINAL — preservado</span>
+            <strong id="originalSaida">—</strong>
+            <small>saída</small>
+            <strong id="originalRetorno">—</strong>
+            <small>retorno</small>
+          </div>
+          <div class="compare-arrow">→</div>
+          <div class="compare-box current">
+            <span>AJUSTADO</span>
+            <label>Nova saída</label>
+            <input id="novaSaida" type="date" />
+            <label>Novo retorno</label>
+            <input id="novoRetorno" type="date" />
+          </div>
+        </div>
+
+        <label class="toggle-inline modal-toggle">
+          <input id="moverRetorno" type="checkbox" />
+          <span id="moverRetornoTexto">Mover o retorno junto ao alterar a saída</span>
+        </label>
+
+        <label>Observação do ajuste</label>
+        <textarea id="ajusteObs" rows="3" placeholder="Ex.: estendeu 4 dias por necessidade operacional"></textarea>
+        <div id="ajusteImpacto" class="impact-box"></div>
+      </div>
+      <div class="modal-actions">
+        <button id="btnReverterAjuste" class="btn danger ghost">Reverter para original</button>
+        <div class="spacer"></div>
+        <button class="btn outline" data-close="modalAjuste">Cancelar</button>
+        <button id="btnSalvarAjuste" class="btn primary">Salvar ajuste</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modalColaborador" class="modal-backdrop hidden" aria-hidden="true">
+    <div class="modal">
+      <div class="modal-head">
+        <div><h2 id="colabModalTitulo">Novo colaborador</h2><p>Cadastre a data de saída que servirá como base do ciclo.</p></div>
+        <button class="icon-close" data-close="modalColaborador">×</button>
+      </div>
+      <div class="modal-body form-grid">
+        <input id="colabId" type="hidden" />
+        <div class="field full"><label>Nome</label><input id="colabNome" type="text" /></div>
+        <div class="field"><label>Escala</label><input id="colabCategoria" type="text" readonly /></div>
+        <div id="fieldFuncao" class="field hidden"><label>Função</label><select id="colabFuncao"><option>SKIDDER</option><option>FELLER</option><option>PC</option><option>PICADOR</option></select></div>
+        <div id="fieldSubtipo" class="field"><label>Tipo</label><select id="colabSubtipo"><option>FIXO</option><option>FOLGUISTA</option><option>FERISTA</option></select></div>
+        <div class="field"><label>Saída base do ciclo</label><input id="colabAnchor" type="date" /></div>
+        <div class="field full"><label>Observação</label><input id="colabObs" type="text" placeholder="Opcional" /></div>
+      </div>
+      <div class="modal-actions">
+        <button id="btnDesativarColab" class="btn danger ghost hidden">Desativar</button>
+        <div class="spacer"></div>
+        <button class="btn outline" data-close="modalColaborador">Cancelar</button>
+        <button id="btnSalvarColab" class="btn primary">Salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modalFerias" class="modal-backdrop hidden" aria-hidden="true">
+    <div class="modal">
+      <div class="modal-head">
+        <div><h2>Férias</h2><p>Férias ficam sobrepostas à escala atual sem apagar a escala original.</p></div>
+        <button class="icon-close" data-close="modalFerias">×</button>
+      </div>
+      <div class="modal-body form-grid">
+        <div class="field full"><label>Colaborador</label><select id="feriasColaborador"></select></div>
+        <div class="field"><label>Início</label><input id="feriasInicio" type="date" /></div>
+        <div class="field"><label>Fim</label><input id="feriasFim" type="date" /></div>
+        <div class="field full"><label>Observação</label><input id="feriasObs" type="text" /></div>
+        <div class="field full"><label>Férias visíveis no mês</label><div id="feriasExistentes" class="absence-list"></div></div>
+      </div>
+      <div class="modal-actions">
+        <div class="spacer"></div>
+        <button class="btn outline" data-close="modalFerias">Cancelar</button>
+        <button id="btnSalvarFerias" class="btn primary">Registrar férias</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+  <script src="app.js?v=5.1.0"></script>
+</body>
+</html>

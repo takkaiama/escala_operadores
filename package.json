@@ -1,0 +1,21 @@
+{
+  "name": "escala-biotec-netlify-test",
+  "version": "5.1.0-netlify-test",
+  "private": true,
+  "description": "Escala BIOTEC preparada para Netlify Functions + PostgreSQL.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "netlify dev",
+    "build": "node -e \"console.log('Build Netlify pronto')\""
+  },
+  "engines": {
+    "node": ">=20 <23"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "pg": "^8.13.1",
+    "serverless-http": "^3.2.0"
+  }
+}
