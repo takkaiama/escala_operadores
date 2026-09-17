@@ -20,7 +20,7 @@ function bind(){
   el('btnHoje').addEventListener('click',()=>{const n=new Date();mesEl.value=n.getMonth()+1;anoEl.value=n.getFullYear();carregar()});
   el('busca').addEventListener('input',e=>{state.search=normalize(e.target.value);render()});
   el('somenteAlterados').addEventListener('change',e=>{state.changedOnly=e.target.checked;render()});
-  el('btnNovo').addEventListener('click',()=>openEmployeeModal()); el('btnFerias').addEventListener('click',openVacationModal);
+  el('btnNovo').addEventListener('click',()=>openEmployeeModal()); el('btnImprimir').addEventListener('click',printSchedule); el('btnExcel').addEventListener('click',exportExcel); el('btnPdf').addEventListener('click',exportPdf); el('btnFerias').addEventListener('click',openVacationModal);
   document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',()=>closeModal(b.dataset.close)));
   document.querySelectorAll('.modal-backdrop').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)closeModal(m.id)}));
   document.addEventListener('keydown',e=>{if(e.key==='Escape')document.querySelectorAll('.modal-backdrop:not(.hidden)').forEach(m=>closeModal(m.id))});
@@ -87,6 +87,80 @@ function openVacationModal(){const arr=state.data?.employees||[];const s=el('fer
 function renderExistingVacations(){const e=findEmployee(Number(el('feriasColaborador').value));const box=el('feriasExistentes');if(!e||!e.absences?.length){box.innerHTML='<span style="color:#94a3b8;font-size:11px">Nenhum período neste mês.</span>';return}box.innerHTML=e.absences.map(a=>`<div class="absence-item"><span>${fmtBR(a.inicio)} → ${fmtBR(a.fim)} ${a.observacao?`· ${escapeHtml(a.observacao)}`:''}</span><button data-del-vac="${a.id}">remover</button></div>`).join('');box.querySelectorAll('[data-del-vac]').forEach(b=>b.addEventListener('click',()=>deleteVacation(Number(b.dataset.delVac))))}
 async function saveVacation(){return guarded('saveVacation',async()=>{const id=Number(el('feriasColaborador').value);if(!id)return;try{await request(`${API}/ferias`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({colaborador_id:id,inicio:el('feriasInicio').value,fim:el('feriasFim').value,observacao:el('feriasObs').value})});closeModal('modalFerias');toast('Férias registradas sem apagar a escala original.');await carregar()}catch(err){toast(err.message)}})}
 async function deleteVacation(id){if(!confirm('Remover este período de férias?'))return;return guarded(`deleteVacation:${id}`,async()=>{try{await request(`${API}/ferias/${id}`,{method:'DELETE'});toast('Férias removidas.');await carregar();openVacationModal()}catch(err){toast(err.message)}})}
+
+const exportStatusCode = { NORMAL:'', SAIDA:'S', FOLGA:'FOLGA', RETORNO:'R', FERIAS:'FÉRIAS', SEM_ESCALA:'—' };
+const exportStatusShort = { NORMAL:'', SAIDA:'S', FOLGA:'F', RETORNO:'R', FERIAS:'FÉR', SEM_ESCALA:'—' };
+const excelStatusFill = {
+  SAIDA:'FF7DD3FC',
+  FOLGA:'FFE34B43',
+  RETORNO:'FF86EFAC',
+  FERIAS:'FFEF4444',
+  SEM_ESCALA:'FFF1F5F9'
+};
+function exportContext(){
+  if(!state.data)throw new Error('A escala ainda não foi carregada.');
+  const y=Number(state.data.ano),m=Number(state.data.mes),total=daysInMonth(y,m),arr=filteredEmployees();
+  const category=state.categoria==='OPERADOR'?'Operadores':'Motoristas';
+  const roleLabel=state.categoria==='OPERADOR'?'FUNÇÃO':'TIPO';
+  const roleFilter=state.funcao?` · ${state.funcao}`:'';
+  const searchFilter=state.search?` · busca aplicada`:'';
+  const changedFilter=state.changedOnly?' · somente alterados':'';
+  return {y,m,total,arr,category,roleLabel,title:`Escala BIOTEC — ${category}${roleFilter} — ${meses[m-1]}/${y}`,filterText:`${arr.length} colaborador(es)${searchFilter}${changedFilter}`};
+}
+function exportFileBase(ctx){return `escala_${state.categoria.toLowerCase()}_${String(ctx.m).padStart(2,'0')}_${ctx.y}`}
+function downloadBlob(blob,filename){const a=document.createElement('a');const url=URL.createObjectURL(blob);a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500)}
+function setBusy(id,busy,label){const b=el(id);if(!b)return;if(busy){b.dataset.label=b.innerHTML;b.disabled=true;b.textContent='Gerando…'}else{b.disabled=false;b.innerHTML=b.dataset.label||label||b.innerHTML}}
+function updatePrintHeader(){const ctx=exportContext();el('printHeader').innerHTML=`<div><strong>${escapeHtml(ctx.title)}</strong><span>${escapeHtml(ctx.filterText)}</span></div><small>Impresso em ${new Date().toLocaleString('pt-BR')}</small>`}
+function printSchedule(){try{updatePrintHeader();window.print()}catch(err){toast(err.message)}}
+async function exportExcel(){
+  if(!window.ExcelJS){toast('Módulo de Excel não carregou. Atualize a página e tente novamente.');return}
+  return guarded('exportExcel',async()=>{
+    setBusy('btnExcel',true);
+    try{
+      const ctx=exportContext(),wb=new ExcelJS.Workbook(),ws=wb.addWorksheet(`${ctx.category} ${String(ctx.m).padStart(2,'0')}-${ctx.y}`,{views:[{state:'frozen',xSplit:2,ySplit:4}]});
+      wb.creator='Escala BIOTEC';wb.created=new Date();
+      const lastCol=ctx.total+2;
+      ws.mergeCells(1,1,1,lastCol);const titleCell=ws.getCell(1,1);titleCell.value=ctx.title;titleCell.font={bold:true,size:16,color:{argb:'FFFFFFFF'}};titleCell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF13203A'}};titleCell.alignment={vertical:'middle',horizontal:'left'};ws.getRow(1).height=25;
+      ws.mergeCells(2,1,2,lastCol);const meta=ws.getCell(2,1);meta.value=`${ctx.filterText} · Exportado em ${new Date().toLocaleString('pt-BR')}`;meta.font={italic:true,size:9,color:{argb:'FF475569'}};
+      const header=['COLABORADOR',ctx.roleLabel,...Array.from({length:ctx.total},(_,i)=>i+1)];
+      const week=['','',...Array.from({length:ctx.total},(_,i)=>['D','S','T','Q','Q','S','S'][dayOfWeek(ctx.y,ctx.m,i+1)])];
+      ws.addRow(header);ws.addRow(week);
+      [3,4].forEach(r=>{ws.getRow(r).font={bold:true,size:9};ws.getRow(r).alignment={horizontal:'center',vertical:'middle'};ws.getRow(r).eachCell(c=>{c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFE7EBF0'}};c.border={top:{style:'thin',color:{argb:'FFAEB9C7'}},left:{style:'thin',color:{argb:'FFAEB9C7'}},bottom:{style:'thin',color:{argb:'FFAEB9C7'}},right:{style:'thin',color:{argb:'FFAEB9C7'}}}})});
+      for(let d=1;d<=ctx.total;d++){const wd=dayOfWeek(ctx.y,ctx.m,d);if(wd===0||wd===6){[3,4].forEach(r=>ws.getCell(r,d+2).fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFFACC15'}})}}
+      for(const e of ctx.arr){
+        const role=state.categoria==='OPERADOR'?(e.funcao||'—'):(e.subtipo||'FIXO');
+        const row=ws.addRow([e.nome,role,...e.cells.map(c=>exportStatusCode[c.current]??c.current)]);row.height=20;
+        row.getCell(1).font={bold:true};row.getCell(1).alignment={horizontal:'left',vertical:'middle'};row.getCell(2).alignment={horizontal:'center',vertical:'middle'};
+        e.cells.forEach((c,i)=>{const cell=row.getCell(i+3);cell.alignment={horizontal:'center',vertical:'middle',wrapText:true};const fill=excelStatusFill[c.current];if(fill)cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:fill}};if(c.current==='FOLGA'||c.current==='FERIAS')cell.font={bold:true,color:{argb:'FFFFFFFF'}};if(c.current==='SAIDA'||c.current==='RETORNO')cell.font={bold:true,color:{argb:'FF0F172A'}};if(c.changed)cell.border={top:{style:'medium',color:{argb:'FF7C3AED'}},left:{style:'medium',color:{argb:'FF7C3AED'}},bottom:{style:'medium',color:{argb:'FF7C3AED'}},right:{style:'medium',color:{argb:'FF7C3AED'}}};else cell.border={top:{style:'thin',color:{argb:'FFCBD5E1'}},left:{style:'thin',color:{argb:'FFCBD5E1'}},bottom:{style:'thin',color:{argb:'FFCBD5E1'}},right:{style:'thin',color:{argb:'FFCBD5E1'}}}});
+      }
+      ws.getColumn(1).width=32;ws.getColumn(2).width=13;for(let c=3;c<=lastCol;c++)ws.getColumn(c).width=6;
+      ws.autoFilter={from:{row:3,column:1},to:{row:3,column:lastCol}};
+      ws.addRow([]);const legend=ws.addRow(['LEGENDA','', 'S = saída','FOLGA = folga','R = retorno','FÉRIAS = férias','Borda roxa = data modificada']);legend.font={bold:true,size:8};
+      const buffer=await wb.xlsx.writeBuffer();downloadBlob(new Blob([buffer],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),`${exportFileBase(ctx)}.xlsx`);toast('Excel exportado.');
+    }catch(err){toast(`Falha ao exportar Excel: ${err.message}`)}finally{setBusy('btnExcel',false,'Excel')}
+  })
+}
+async function exportPdf(){
+  const jsPDF=window.jspdf?.jsPDF;if(!jsPDF){toast('Módulo de PDF não carregou. Atualize a página e tente novamente.');return}
+  return guarded('exportPdf',async()=>{
+    setBusy('btnPdf',true);
+    try{
+      const ctx=exportContext(),doc=new jsPDF({orientation:'landscape',unit:'mm',format:'a3',compress:true});
+      doc.setFont('helvetica','bold');doc.setFontSize(14);doc.text(ctx.title,10,11);
+      doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(71,85,105);doc.text(`${ctx.filterText} · Exportado em ${new Date().toLocaleString('pt-BR')}`,10,16);doc.setTextColor(15,23,42);
+      const head=[['COLABORADOR',ctx.roleLabel,...Array.from({length:ctx.total},(_,i)=>String(i+1))]];
+      const body=ctx.arr.map(e=>{
+        const role=state.categoria==='OPERADOR'?(e.funcao||'—'):(e.subtipo||'FIXO');
+        const cells=e.cells.map(c=>{const styles={halign:'center',valign:'middle'};if(c.current==='SAIDA')styles.fillColor=[125,211,252];if(c.current==='FOLGA'){styles.fillColor=[227,75,67];styles.textColor=[255,255,255]};if(c.current==='RETORNO')styles.fillColor=[134,239,172];if(c.current==='FERIAS'){styles.fillColor=[239,68,68];styles.textColor=[255,255,255]};if(c.current==='SEM_ESCALA'){styles.fillColor=[241,245,249];styles.textColor=[148,163,184]};if(c.changed){styles.lineColor=[124,58,237];styles.lineWidth=.45}return {content:exportStatusShort[c.current]??c.current,styles}});
+        return [{content:e.nome,styles:{fontStyle:'bold',halign:'left'}},{content:role,styles:{halign:'center'}},...cells]
+      });
+      if(typeof doc.autoTable!=='function')throw new Error('Plugin de tabela PDF não disponível.');
+      doc.autoTable({startY:20,head,body,theme:'grid',margin:{left:8,right:8,bottom:12},styles:{fontSize:5.4,cellPadding:.7,minCellHeight:4.8,overflow:'ellipsize',lineColor:[174,185,199],lineWidth:.12},headStyles:{fillColor:[231,235,240],textColor:[15,23,42],fontStyle:'bold',halign:'center',fontSize:5.8},columnStyles:{0:{cellWidth:48,halign:'left'},1:{cellWidth:20}},didParseCell:data=>{if(data.section==='head'&&data.column.index>=2){const d=data.column.index-1,wd=dayOfWeek(ctx.y,ctx.m,d);if(wd===0||wd===6)data.cell.styles.fillColor=[250,204,21]}},didDrawPage:data=>{doc.setFontSize(6);doc.setTextColor(71,85,105);doc.text(`Página ${doc.internal.getNumberOfPages()} · S=saída · F=folga · R=retorno · FÉR=férias · borda roxa=data modificada`,8,doc.internal.pageSize.getHeight()-5);doc.setTextColor(15,23,42)}});
+      doc.save(`${exportFileBase(ctx)}.pdf`);toast('PDF exportado.');
+    }catch(err){toast(`Falha ao exportar PDF: ${err.message}`)}finally{setBusy('btnPdf',false,'PDF')}
+  })
+}
+
 function escapeHtml(v){return String(v??'').replace(/[&<>"']/g,s=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[s]))}
 function escapeAttr(v){return escapeHtml(v).replace(/\n/g,'&#10;')}
 init();

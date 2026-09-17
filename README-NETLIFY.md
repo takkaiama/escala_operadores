@@ -27,3 +27,12 @@ Esta variante mantém o frontend e as regras da v5.1.0 e troca o SQLite local po
 ## Segurança
 
 Esta versão de teste mantém o comportamento da v5.1.0 e ainda não adiciona autenticação. Não use como produção pública com dados sensíveis antes de implementar login/admin e autorização nos endpoints de escrita.
+
+
+## v5.2.0 — impressão e exportações
+
+- Botão **Imprimir** com layout A4 paisagem.
+- Botão **Excel** (verde) exporta a visualização atual para `.xlsx`.
+- Botão **PDF** (vermelho) exporta a visualização atual para PDF A3 paisagem.
+- Exportações respeitam categoria, função, pesquisa e filtro "Somente alterados".
+- ExcelJS e jsPDF são carregados por CDN com versões fixadas para gerar os arquivos no navegador.

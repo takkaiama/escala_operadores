@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Escala BIOTEC</title>
-  <link rel="stylesheet" href="style.css?v=5.1.0" />
+  <link rel="stylesheet" href="style.css?v=5.2.0" />
 </head>
 <body>
   <div class="app-shell">
@@ -53,10 +53,14 @@
 
       <div class="toolbar-actions">
         <button id="btnNovo" class="btn outline">+ Colaborador</button>
+        <button id="btnImprimir" class="btn export-print" title="Imprimir a escala exibida">🖨 Imprimir</button>
+        <button id="btnExcel" class="btn export-excel" title="Exportar a escala exibida para Excel">Excel</button>
+        <button id="btnPdf" class="btn export-pdf" title="Exportar a escala exibida para PDF">PDF</button>
         <button id="btnFerias" class="btn outline">Férias</button>
       </div>
     </section>
 
+    <section id="printHeader" class="print-header" aria-hidden="true"></section>
     <section id="summary" class="summary-grid"></section>
     <section id="alertas" class="alerts"></section>
 
@@ -170,6 +174,9 @@
   </div>
 
   <div id="toast" class="toast"></div>
-  <script src="app.js?v=5.1.0"></script>
+  <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.4/dist/jspdf.plugin.autotable.min.js"></script>
+  <script src="app.js?v=5.2.0"></script>
 </body>
 </html>

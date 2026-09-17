@@ -1,8 +1,8 @@
 {
   "name": "escala-biotec-netlify-test",
-  "version": "5.1.0-netlify-test",
+  "version": "5.2.0-netlify-export",
   "private": true,
-  "description": "Escala BIOTEC preparada para Netlify Functions + PostgreSQL.",
+  "description": "Escala BIOTEC para Netlify Functions + PostgreSQL, com impressão e exportação Excel/PDF.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
