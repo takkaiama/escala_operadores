@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const { Pool } = require('pg');
+const crypto = require('crypto');
 const bootstrap = require('./bootstrap-data.json');
 
 const app = express();
@@ -19,6 +20,89 @@ const pool = new Pool({
   connectionTimeoutMillis: 10000,
   ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false
 });
+
+const AUTH_TTL_SECONDS = Number(process.env.ESCALA_AUTH_TTL_SECONDS || 8 * 60 * 60);
+const AUTH_SECRET = crypto.createHash('sha256').update(
+  String(process.env.ESCALA_AUTH_SECRET || process.env.DATABASE_URL || 'escala-biotec-dev-only')
+).digest();
+const loginAttempts = new Map();
+
+function b64url(value) {
+  return Buffer.from(value).toString('base64url');
+}
+function signToken(payload) {
+  const body = b64url(JSON.stringify(payload));
+  const sig = crypto.createHmac('sha256', AUTH_SECRET).update(body).digest('base64url');
+  return `${body}.${sig}`;
+}
+function verifyToken(token) {
+  const [body, sig] = String(token || '').split('.');
+  if (!body || !sig) return null;
+  const expected = crypto.createHmac('sha256', AUTH_SECRET).update(body).digest();
+  let received;
+  try { received = Buffer.from(sig, 'base64url'); } catch { return null; }
+  if (received.length !== expected.length || !crypto.timingSafeEqual(received, expected)) return null;
+  try {
+    const payload = JSON.parse(Buffer.from(body, 'base64url').toString('utf8'));
+    if (!payload.exp || Number(payload.exp) < Math.floor(Date.now() / 1000)) return null;
+    return payload;
+  } catch { return null; }
+}
+function passwordHash(password, salt = crypto.randomBytes(16).toString('hex')) {
+  const hash = crypto.scryptSync(String(password), salt, 64).toString('hex');
+  return `scrypt$${salt}$${hash}`;
+}
+function passwordOk(password, stored) {
+  const parts = String(stored || '').split('$');
+  if (parts.length !== 3 || parts[0] !== 'scrypt') return false;
+  const candidate = crypto.scryptSync(String(password), parts[1], 64);
+  const expected = Buffer.from(parts[2], 'hex');
+  return expected.length === candidate.length && crypto.timingSafeEqual(candidate, expected);
+}
+function normalizeUsername(v) {
+  return String(v || '').trim().toLowerCase();
+}
+function authTokenFrom(req) {
+  const h = String(req.headers.authorization || '');
+  return /^Bearer\s+/i.test(h) ? h.replace(/^Bearer\s+/i, '').trim() : '';
+}
+async function requireAuth(req, res, next) {
+  try {
+    const payload = verifyToken(authTokenFrom(req));
+    if (!payload?.uid) return res.status(401).json({ erro: 'Login necessário.' });
+    const user = await dbGet('SELECT id,username,nome,role,ativo FROM usuarios_v5 WHERE id=?', [Number(payload.uid)]);
+    if (!user || Number(user.ativo) !== 1) return res.status(401).json({ erro: 'Sessão inválida ou usuário desativado.' });
+    req.auth = { id:Number(user.id), username:user.username, nome:user.nome, role:user.role };
+    next();
+  } catch (err) { res.status(401).json({ erro: 'Sessão inválida.' }); }
+}
+function requireEditor(req, res, next) {
+  return requireAuth(req, res, () => {
+    if (!['ADMIN','USUARIO'].includes(req.auth.role)) return res.status(403).json({ erro: 'Sem permissão de edição.' });
+    next();
+  });
+}
+function requireAdmin(req, res, next) {
+  return requireAuth(req, res, () => {
+    if (req.auth.role !== 'ADMIN') return res.status(403).json({ erro: 'Acesso restrito ao administrador.' });
+    next();
+  });
+}
+function loginKey(req, username) {
+  const ip = String(req.headers['x-forwarded-for'] || req.ip || '').split(',')[0].trim();
+  return `${ip}|${username}`;
+}
+function loginBlocked(key) {
+  const row = loginAttempts.get(key);
+  if (!row) return false;
+  if (Date.now() - row.started > 15 * 60 * 1000) { loginAttempts.delete(key); return false; }
+  return row.count >= 6;
+}
+function noteLoginFailure(key) {
+  const row = loginAttempts.get(key);
+  if (!row || Date.now() - row.started > 15 * 60 * 1000) loginAttempts.set(key, { count:1, started:Date.now() });
+  else row.count += 1;
+}
 
 app.use(cors());
 app.use(express.json({ limit: '3mb' }));
@@ -162,6 +246,34 @@ async function initDb() {
       payload TEXT NOT NULL DEFAULT '{}',
       criado_em TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`);
+
+
+    await pool.query(`CREATE TABLE IF NOT EXISTS usuarios_v5 (
+      id BIGSERIAL PRIMARY KEY,
+      username TEXT NOT NULL UNIQUE,
+      nome TEXT NOT NULL DEFAULT '',
+      senha_hash TEXT NOT NULL,
+      role TEXT NOT NULL CHECK (role IN ('ADMIN','USUARIO')),
+      ativo INTEGER NOT NULL DEFAULT 1,
+      criado_em TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      atualizado_em TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`);
+    await pool.query(`ALTER TABLE ausencias_v5 ADD COLUMN IF NOT EXISTS atualizado_em TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP`);
+
+    const userCount = await pool.query('SELECT COUNT(*)::int AS total FROM usuarios_v5');
+    if (Number(userCount.rows[0]?.total || 0) === 0) {
+      const adminUser = normalizeUsername(process.env.ESCALA_ADMIN_USER || '');
+      const adminPassword = String(process.env.ESCALA_ADMIN_PASSWORD || '');
+      if (adminUser && adminPassword.length >= 8) {
+        await pool.query(`INSERT INTO usuarios_v5(username,nome,senha_hash,role) VALUES ($1,$2,$3,'ADMIN') ON CONFLICT (username) DO NOTHING`, [
+          adminUser,
+          String(process.env.ESCALA_ADMIN_NAME || 'Administrador'),
+          passwordHash(adminPassword)
+        ]);
+      } else {
+        console.warn('[ESCALA] Nenhum usuário administrativo existe. Configure ESCALA_ADMIN_USER e ESCALA_ADMIN_PASSWORD no Netlify e redeploy.');
+      }
+    }
 
     const count = await pool.query('SELECT COUNT(*)::int AS total FROM colaboradores_v5');
     if (Number(count.rows[0]?.total || 0) === 0) {
@@ -339,10 +451,79 @@ async function loadSchedule({ categoria, funcao, year, month }) {
   return employees.map(e => montarEscalaColaborador(e, year, month, adjBy.get(e.id), absBy.get(e.id)));
 }
 
+
+app.get('/api/v5/auth/status', async (_req, res) => {
+  try {
+    const count = await dbGet('SELECT COUNT(*) AS total FROM usuarios_v5 WHERE ativo=1');
+    res.json({ ok:true, has_users:Number(count?.total || 0) > 0 });
+  } catch (err) { res.status(500).json({ erro: err.message }); }
+});
+
+app.post('/api/v5/auth/login', async (req, res) => {
+  try {
+    const username = normalizeUsername(req.body.username);
+    const password = String(req.body.password || '');
+    const key = loginKey(req, username);
+    if (loginBlocked(key)) return res.status(429).json({ erro: 'Muitas tentativas. Aguarde alguns minutos e tente novamente.' });
+    const user = await dbGet('SELECT * FROM usuarios_v5 WHERE username=?', [username]);
+    if (!user || Number(user.ativo) !== 1 || !passwordOk(password, user.senha_hash)) {
+      noteLoginFailure(key);
+      return res.status(401).json({ erro: 'Usuário ou senha inválidos.' });
+    }
+    loginAttempts.delete(key);
+    const exp = Math.floor(Date.now() / 1000) + AUTH_TTL_SECONDS;
+    const token = signToken({ uid:Number(user.id), username:user.username, role:user.role, exp, nonce:crypto.randomBytes(8).toString('hex') });
+    res.json({ token, user:{ id:Number(user.id), username:user.username, nome:user.nome, role:user.role }, expires_at:exp });
+  } catch (err) { res.status(500).json({ erro: err.message }); }
+});
+
+app.get('/api/v5/auth/me', requireAuth, async (req, res) => {
+  res.json({ user:req.auth });
+});
+
+app.get('/api/v5/usuarios', requireAdmin, async (_req, res) => {
+  try {
+    const rows = await dbAll('SELECT id,username,nome,role,ativo,criado_em,atualizado_em FROM usuarios_v5 ORDER BY ativo DESC, role, username');
+    res.json(rows.map(r => ({ ...r, id:Number(r.id), ativo:Number(r.ativo) })));
+  } catch (err) { res.status(500).json({ erro:err.message }); }
+});
+
+app.post('/api/v5/usuarios', requireAdmin, async (req, res) => {
+  try {
+    const username = normalizeUsername(req.body.username);
+    const nome = String(req.body.nome || '').trim();
+    const role = String(req.body.role || 'USUARIO').toUpperCase();
+    const password = String(req.body.password || '');
+    if (!/^[a-z0-9._-]{3,40}$/.test(username)) return res.status(400).json({ erro:'Usuário deve ter 3 a 40 caracteres: letras, números, ponto, traço ou sublinhado.' });
+    if (!['ADMIN','USUARIO'].includes(role)) return res.status(400).json({ erro:'Perfil inválido.' });
+    if (password.length < 8) return res.status(400).json({ erro:'A senha precisa ter pelo menos 8 caracteres.' });
+    const info = await dbRun('INSERT INTO usuarios_v5(username,nome,senha_hash,role) VALUES (?,?,?,?)', [username,nome,passwordHash(password),role]);
+    res.json({ ok:true, id:info.lastID });
+  } catch (err) { res.status(400).json({ erro:/UNIQUE/i.test(err.message)?'Esse usuário já existe.':err.message }); }
+});
+
+app.put('/api/v5/usuarios/:id', requireAdmin, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const old = await dbGet('SELECT * FROM usuarios_v5 WHERE id=?', [id]);
+    if (!old) return res.status(404).json({ erro:'Usuário não encontrado.' });
+    const nome = req.body.nome == null ? old.nome : String(req.body.nome).trim();
+    const role = req.body.role == null ? old.role : String(req.body.role).toUpperCase();
+    const ativo = req.body.ativo == null ? Number(old.ativo) : (req.body.ativo ? 1 : 0);
+    if (!['ADMIN','USUARIO'].includes(role)) return res.status(400).json({ erro:'Perfil inválido.' });
+    if (id === req.auth.id && (ativo !== 1 || role !== 'ADMIN')) return res.status(400).json({ erro:'O administrador logado não pode desativar nem remover o próprio perfil de administrador.' });
+    const password = String(req.body.password || '');
+    if (password && password.length < 8) return res.status(400).json({ erro:'A nova senha precisa ter pelo menos 8 caracteres.' });
+    if (password) await dbRun('UPDATE usuarios_v5 SET nome=?,role=?,ativo=?,senha_hash=?,atualizado_em=CURRENT_TIMESTAMP WHERE id=?', [nome,role,ativo,passwordHash(password),id]);
+    else await dbRun('UPDATE usuarios_v5 SET nome=?,role=?,ativo=?,atualizado_em=CURRENT_TIMESTAMP WHERE id=?', [nome,role,ativo,id]);
+    res.json({ ok:true });
+  } catch (err) { res.status(400).json({ erro:err.message }); }
+});
+
 app.get('/api/v5/health', async (_req, res) => {
   try {
     const total = await dbGet('SELECT COUNT(*) AS total FROM colaboradores_v5 WHERE ativo=1');
-    res.json({ ok: true, version: '5.1.0', colaboradores: total.total, timezone: APP_TIMEZONE });
+    res.json({ ok: true, version: '5.3.0', colaboradores: total.total, timezone: APP_TIMEZONE });
   } catch (err) { res.status(500).json({ ok: false, erro: err.message }); }
 });
 
@@ -372,7 +553,7 @@ app.get('/api/v5/escala', async (req, res) => {
         if (c.current === 'RETORNO') alerts.push({ kind: 'retorno', date: c.date, employee_id: e.id, nome: e.nome, funcao: e.funcao, when });
       }
     }
-    res.json({ version: '5.1.0', categoria, funcao, mes: month, ano: year, employees, alerts });
+    res.json({ version: '5.3.0', categoria, funcao, mes: month, ano: year, employees, alerts });
   } catch (err) {
     console.error(err);
     res.status(500).json({ erro: err.message });
@@ -390,7 +571,7 @@ app.get('/api/v5/colaboradores', async (req, res) => {
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
 
-app.post('/api/v5/colaboradores', async (req, res) => {
+app.post('/api/v5/colaboradores', requireEditor, async (req, res) => {
   try {
     const nome = normalizarTexto(req.body.nome);
     const categoria = String(req.body.categoria || '').toUpperCase();
@@ -425,7 +606,7 @@ app.post('/api/v5/colaboradores', async (req, res) => {
   }
 });
 
-app.put('/api/v5/colaboradores/:id', async (req, res) => {
+app.put('/api/v5/colaboradores/:id', requireEditor, async (req, res) => {
   try {
     const id = Number(req.params.id);
     const old = await dbGet('SELECT * FROM colaboradores_v5 WHERE id=?', [id]);
@@ -448,7 +629,7 @@ app.put('/api/v5/colaboradores/:id', async (req, res) => {
   } catch (err) { res.status(400).json({ erro: /UNIQUE/i.test(err.message) ? 'Já existe outro colaborador com esse nome e função nesta escala.' : err.message }); }
 });
 
-app.delete('/api/v5/colaboradores/:id', async (req, res) => {
+app.delete('/api/v5/colaboradores/:id', requireEditor, async (req, res) => {
   try {
     const id = Number(req.params.id);
     const old = await dbGet('SELECT * FROM colaboradores_v5 WHERE id=?', [id]);
@@ -470,7 +651,7 @@ function baseCycleValid(emp, base_saida) {
   return ((delta % cycleLen) + cycleLen) % cycleLen === 0;
 }
 
-app.post('/api/v5/ajustes', async (req, res) => {
+app.post('/api/v5/ajustes', requireEditor, async (req, res) => {
   try {
     const colaboradorId = Number(req.body.colaborador_id);
     const emp = await getEmployee(colaboradorId);
@@ -511,7 +692,7 @@ app.post('/api/v5/ajustes', async (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ erro: err.message }); }
 });
 
-app.delete('/api/v5/ajustes', async (req, res) => {
+app.delete('/api/v5/ajustes', requireEditor, async (req, res) => {
   try {
     const colaboradorId = Number(req.query.colaborador_id);
     const baseSaida = String(req.query.base_saida || '');
@@ -522,7 +703,7 @@ app.delete('/api/v5/ajustes', async (req, res) => {
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
 
-app.post('/api/v5/ferias', async (req, res) => {
+app.post('/api/v5/ferias', requireEditor, async (req, res) => {
   try {
     const colaboradorId = Number(req.body.colaborador_id);
     const emp = await getEmployee(colaboradorId);
@@ -538,7 +719,27 @@ app.post('/api/v5/ferias', async (req, res) => {
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
 
-app.delete('/api/v5/ferias/:id', async (req, res) => {
+
+app.put('/api/v5/ferias/:id', requireEditor, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const before = await dbGet("SELECT * FROM ausencias_v5 WHERE id=? AND tipo='FERIAS'", [id]);
+    if (!before) return res.status(404).json({ erro:'Período não encontrado.' });
+    const inicio = String(req.body.inicio || '');
+    const fim = String(req.body.fim || '');
+    const observacao = String(req.body.observacao || '');
+    if (!parseISO(inicio) || !parseISO(fim) || fim < inicio) return res.status(400).json({ erro:'Período de férias inválido.' });
+    if (diffDays(fim, inicio) > 180) return res.status(400).json({ erro:'Período de férias muito longo.' });
+    const overlap = await dbGet(`SELECT id,inicio,fim FROM ausencias_v5 WHERE colaborador_id=? AND tipo='FERIAS' AND id<>? AND fim>=? AND inicio<=? LIMIT 1`, [before.colaborador_id,id,inicio,fim]);
+    if (overlap) return res.status(409).json({ erro:`Já existe férias sobreposta neste período (${overlap.inicio} a ${overlap.fim}).` });
+    await dbRun('UPDATE ausencias_v5 SET inicio=?,fim=?,observacao=?,atualizado_em=CURRENT_TIMESTAMP WHERE id=?', [inicio,fim,observacao,id]);
+    const after = await dbGet('SELECT * FROM ausencias_v5 WHERE id=?', [id]);
+    await dbRun(`INSERT INTO historico_v5(colaborador_id,acao,payload) VALUES (?,?,?)`, [before.colaborador_id,'ALTERAR_FERIAS',JSON.stringify({ antes:before, depois:after })]);
+    res.json({ ok:true });
+  } catch (err) { res.status(500).json({ erro:err.message }); }
+});
+
+app.delete('/api/v5/ferias/:id', requireEditor, async (req, res) => {
   try {
     const id = Number(req.params.id);
     const before = await dbGet('SELECT * FROM ausencias_v5 WHERE id=?', [id]);
@@ -549,7 +750,7 @@ app.delete('/api/v5/ferias/:id', async (req, res) => {
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
 
-app.get('/api/v5/historico/:id', async (req, res) => {
+app.get('/api/v5/historico/:id', requireEditor, async (req, res) => {
   try {
     const rows = await dbAll('SELECT * FROM historico_v5 WHERE colaborador_id=? ORDER BY id DESC LIMIT 100', [Number(req.params.id)]);
     res.json(rows);

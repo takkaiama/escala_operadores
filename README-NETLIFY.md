@@ -1,38 +1,39 @@
-# Escala BIOTEC v5.1.0 — teste no Netlify
+# Escala BIOTEC v5.3.0 — Netlify + PostgreSQL
 
-Esta variante mantém o frontend e as regras da v5.1.0 e troca o SQLite local por PostgreSQL para funcionar de forma persistente no Netlify.
+## O que mudou
 
-## Variáveis obrigatórias
+- O link público continua abrindo a escala sem login, em modo **somente visualização**.
+- Botão **Login** no topo.
+- Perfis `USUARIO` e `ADMIN` podem cadastrar, editar, ajustar, desativar colaboradores e gerenciar férias.
+- Somente `ADMIN` pode criar, ativar/desativar usuários, alterar perfil e redefinir senhas.
+- Botões de edição/exclusão/ajuste não aparecem para visitantes.
+- Os endpoints de escrita também exigem autenticação no servidor; esconder botões não é a única proteção.
+- Férias existentes agora podem ser editadas, além de removidas.
+- Senhas são armazenadas com `scrypt` e salt aleatório; nunca são gravadas em texto puro.
+- Sessões são assinadas e revalidam no banco se o usuário ainda está ativo.
 
-- `DATABASE_URL`: string de conexão PostgreSQL (Neon funciona normalmente).
-- `APP_TIMEZONE`: opcional. Padrão: `America/Sao_Paulo`.
+## Primeiro administrador
 
-## Publicação pelo GitHub + Netlify
+Antes do primeiro deploy desta versão, configure no Netlify em **Environment variables**:
 
-1. Crie um repositório GitHub para este teste e envie o conteúdo desta pasta.
-2. No Netlify: Add new project > Import an existing project > GitHub.
-3. Selecione o repositório.
-4. O arquivo `netlify.toml` já define:
-   - Build command: `npm run build`
-   - Publish directory: `public`
-   - Functions directory: `netlify/functions`
-5. Em Project configuration > Environment variables, adicione `DATABASE_URL`.
-6. Faça o deploy.
-7. Teste primeiro `/api/v5/health`; depois abra a página inicial.
+- `ESCALA_ADMIN_USER` — usuário inicial do administrador, por exemplo `admin.biotec`
+- `ESCALA_ADMIN_PASSWORD` — senha inicial, mínimo 8 caracteres
+- `ESCALA_ADMIN_NAME` — opcional, nome exibido
+- `ESCALA_AUTH_SECRET` — recomendado: uma chave longa e aleatória. Se omitida, o sistema deriva uma chave estável da `DATABASE_URL`.
 
-## Dados iniciais
+A conta inicial só é criada quando a tabela de usuários ainda está vazia. Depois disso, novos usuários e administradores devem ser criados pelo botão **Usuários** dentro do sistema.
 
-`bootstrap-data.json` foi extraído do `escala.db` da versão recebida. No primeiro acesso a um banco vazio, a aplicação cria as tabelas e importa esses dados automaticamente.
+## Banco
 
-## Segurança
+A versão cria automaticamente as tabelas/colunas adicionais necessárias (`usuarios_v5` e `ausencias_v5.atualizado_em`) sem apagar os dados existentes.
 
-Esta versão de teste mantém o comportamento da v5.1.0 e ainda não adiciona autenticação. Não use como produção pública com dados sensíveis antes de implementar login/admin e autorização nos endpoints de escrita.
+## Publicação
 
+O Netlify continua usando:
 
-## v5.2.0 — impressão e exportações
+- `npm run build`
+- pasta publicada: `public`
+- Functions: `netlify/functions`
+- redirecionamento `/api/*` para a Function
 
-- Botão **Imprimir** com layout A4 paisagem.
-- Botão **Excel** (verde) exporta a visualização atual para `.xlsx`.
-- Botão **PDF** (vermelho) exporta a visualização atual para PDF A3 paisagem.
-- Exportações respeitam categoria, função, pesquisa e filtro "Somente alterados".
-- ExcelJS e jsPDF são carregados por CDN com versões fixadas para gerar os arquivos no navegador.
+Depois de publicar, faça um novo deploy após configurar as variáveis do primeiro administrador.

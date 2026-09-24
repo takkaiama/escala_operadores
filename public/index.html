@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Escala BIOTEC</title>
-  <link rel="stylesheet" href="style.css?v=5.2.0" />
+  <link rel="stylesheet" href="style.css?v=5.3.0" />
 </head>
 <body>
   <div class="app-shell">
@@ -16,10 +16,18 @@
           <p>Motoristas e operadores com escala original + ajustes preservados</p>
         </div>
       </div>
-      <div class="date-controls">
-        <select id="mes"></select>
-        <input id="ano" type="number" min="2020" max="2100" />
-        <button id="btnHoje" class="btn dark">Mês atual</button>
+      <div class="topbar-right">
+        <div class="date-controls">
+          <select id="mes"></select>
+          <input id="ano" type="number" min="2020" max="2100" />
+          <button id="btnHoje" class="btn dark">Mês atual</button>
+        </div>
+        <div class="auth-controls">
+          <span id="authStatus" class="auth-status">Somente visualização</span>
+          <button id="btnUsuarios" class="btn outline hidden">Usuários</button>
+          <button id="btnLogout" class="btn outline hidden">Sair</button>
+          <button id="btnLogin" class="btn primary">Login</button>
+        </div>
       </div>
     </header>
 
@@ -52,11 +60,11 @@
       </label>
 
       <div class="toolbar-actions">
-        <button id="btnNovo" class="btn outline">+ Colaborador</button>
+        <button id="btnNovo" class="btn outline hidden">+ Colaborador</button>
         <button id="btnImprimir" class="btn export-print" title="Imprimir a escala exibida">🖨 Imprimir</button>
         <button id="btnExcel" class="btn export-excel" title="Exportar a escala exibida para Excel">Excel</button>
         <button id="btnPdf" class="btn export-pdf" title="Exportar a escala exibida para PDF">PDF</button>
-        <button id="btnFerias" class="btn outline">Férias</button>
+        <button id="btnFerias" class="btn outline hidden">Férias</button>
       </div>
     </section>
 
@@ -159,6 +167,7 @@
         <button class="icon-close" data-close="modalFerias">×</button>
       </div>
       <div class="modal-body form-grid">
+        <input id="feriasId" type="hidden" />
         <div class="field full"><label>Colaborador</label><select id="feriasColaborador"></select></div>
         <div class="field"><label>Início</label><input id="feriasInicio" type="date" /></div>
         <div class="field"><label>Fim</label><input id="feriasFim" type="date" /></div>
@@ -166,10 +175,56 @@
         <div class="field full"><label>Férias visíveis no mês</label><div id="feriasExistentes" class="absence-list"></div></div>
       </div>
       <div class="modal-actions">
+        <button id="btnCancelarEdicaoFerias" class="btn outline hidden">Cancelar edição</button>
         <div class="spacer"></div>
-        <button class="btn outline" data-close="modalFerias">Cancelar</button>
+        <button class="btn outline" data-close="modalFerias">Fechar</button>
         <button id="btnSalvarFerias" class="btn primary">Registrar férias</button>
       </div>
+    </div>
+  </div>
+
+  <div id="modalLogin" class="modal-backdrop hidden" aria-hidden="true">
+    <div class="modal small">
+      <div class="modal-head">
+        <div><h2>Login da equipe</h2><p>O acesso público continua somente para visualização.</p></div>
+        <button class="icon-close" data-close="modalLogin">×</button>
+      </div>
+      <div class="modal-body form-grid">
+        <div class="field full"><label>Usuário</label><input id="loginUsuario" type="text" autocomplete="username" /></div>
+        <div class="field full"><label>Senha</label><input id="loginSenha" type="password" autocomplete="current-password" /></div>
+        <div id="loginSetupAviso" class="field full setup-warning hidden"></div>
+      </div>
+      <div class="modal-actions">
+        <div class="spacer"></div>
+        <button class="btn outline" data-close="modalLogin">Cancelar</button>
+        <button id="btnEntrar" class="btn primary">Entrar</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modalUsuarios" class="modal-backdrop hidden" aria-hidden="true">
+    <div class="modal wide">
+      <div class="modal-head">
+        <div><h2>Usuários de edição</h2><p>Administradores gerenciam contas. Usuários e administradores podem editar a escala.</p></div>
+        <button class="icon-close" data-close="modalUsuarios">×</button>
+      </div>
+      <div class="modal-body users-layout">
+        <div class="user-create-card">
+          <h3>Novo acesso</h3>
+          <div class="form-grid">
+            <div class="field"><label>Usuário</label><input id="novoUsuario" type="text" placeholder="ex.: equipe1" /></div>
+            <div class="field"><label>Nome</label><input id="novoUsuarioNome" type="text" placeholder="Nome da pessoa/equipe" /></div>
+            <div class="field"><label>Perfil</label><select id="novoUsuarioRole"><option value="USUARIO">Usuário</option><option value="ADMIN">Administrador</option></select></div>
+            <div class="field"><label>Senha inicial</label><input id="novoUsuarioSenha" type="password" minlength="8" /></div>
+          </div>
+          <button id="btnCriarUsuario" class="btn primary">Criar acesso</button>
+        </div>
+        <div>
+          <h3>Acessos existentes</h3>
+          <div id="listaUsuarios" class="users-list"></div>
+        </div>
+      </div>
+      <div class="modal-actions"><div class="spacer"></div><button class="btn outline" data-close="modalUsuarios">Fechar</button></div>
     </div>
   </div>
 
@@ -177,6 +232,6 @@
   <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.4/dist/jspdf.plugin.autotable.min.js"></script>
-  <script src="app.js?v=5.2.0"></script>
+  <script src="app.js?v=5.3.0"></script>
 </body>
 </html>
