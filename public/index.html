@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Escala BIOTEC</title>
+  <link rel="stylesheet" href="style.css?v=5.5.0" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand-block">
+        <div class="brand-mark">B</div>
+        <div>
+          <h1>Escala BIOTEC</h1>
+          <p>Motoristas e operadores com escala original + ajustes preservados</p>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <div class="date-controls">
+          <select id="mes"></select>
+          <input id="ano" type="number" min="2020" max="2100" />
+          <button id="btnHoje" class="btn dark">Mês atual</button>
+        </div>
+        <div class="auth-controls">
+          <span id="authStatus" class="auth-status">Somente visualização</span>
+          <button id="btnHistorico" class="btn outline hidden">Versões salvas</button>
+          <button id="btnAuditoria" class="btn outline hidden">Log de atividades</button>
+          <button id="btnUsuarios" class="btn outline hidden">Usuários</button>
+          <button id="btnLogout" class="btn outline hidden">Sair</button>
+          <button id="btnLogin" class="btn primary">Login</button>
+        </div>
+      </div>
+    </header>
+
+    <nav class="main-tabs">
+      <button class="main-tab active" data-category="MOTORISTA">
+        <span>Motoristas</span><small>regime 23 / 7</small>
+      </button>
+      <button class="main-tab" data-category="OPERADOR">
+        <span>Operadores</span><small>Skidder · Feller · PC · Picador — 24 / 6</small>
+      </button>
+    </nav>
+
+    <section class="toolbar">
+      <div class="search-wrap">
+        <span>⌕</span>
+        <input id="busca" type="search" placeholder="Pesquisar colaborador..." />
+      </div>
+
+      <div id="roleFilters" class="role-filters hidden">
+        <button class="role-pill active" data-role="">Todos</button>
+        <button class="role-pill" data-role="SKIDDER">Skidder</button>
+        <button class="role-pill" data-role="FELLER">Feller</button>
+        <button class="role-pill" data-role="PC">PC</button>
+        <button class="role-pill" data-role="PICADOR">Picador</button>
+      </div>
+
+      <label class="toggle-inline">
+        <input id="somenteAlterados" type="checkbox" />
+        <span>Somente alterados</span>
+      </label>
+
+      <div class="toolbar-actions">
+        <button id="btnNovo" class="btn outline hidden">+ Colaborador</button>
+        <button id="btnImprimir" class="btn export-print" title="Imprimir a escala exibida">🖨 Imprimir</button>
+        <button id="btnExcel" class="btn export-excel" title="Exportar a escala exibida para Excel">Excel</button>
+        <button id="btnPdf" class="btn export-pdf" title="Exportar a escala exibida para PDF">PDF</button>
+        <button id="btnFerias" class="btn outline hidden">Férias</button>
+      </div>
+    </section>
+
+    <section id="historicoBanner" class="history-banner hidden"><span id="historicoBannerTexto"></span><button id="btnSairHistorico" class="btn outline">Voltar à escala atual</button></section>
+    <section id="printHeader" class="print-header" aria-hidden="true"></section>
+    <section id="summary" class="summary-grid"></section>
+    <section id="alertas" class="alerts"></section>
+
+    <section class="legend-bar">
+      <span><i class="legend-dot saida"></i>S = saída / início da folga</span>
+      <span><i class="legend-dot folga"></i>Folga / férias</span>
+      <span><i class="legend-dot retorno"></i>R = retorno</span>
+      <span><i class="legend-corner"></i>Canto = marcação original quando houve ajuste</span>
+      <span><i class="legend-change"></i>Borda = data modificada</span>
+    </section>
+
+    <main class="calendar-card">
+      <div class="table-wrap">
+        <table id="tabelaEscala"></table>
+      </div>
+    </main>
+  </div>
+
+  <div id="modalAjuste" class="modal-backdrop hidden" aria-hidden="true">
+    <div class="modal wide">
+      <div class="modal-head">
+        <div>
+          <h2>Ajustar ciclo</h2>
+          <p id="ajusteNome"></p>
+        </div>
+        <button class="icon-close" data-close="modalAjuste">×</button>
+      </div>
+      <div class="modal-body">
+        <label>Ciclo original</label>
+        <select id="ajusteCiclo"></select>
+
+        <div class="compare-grid">
+          <div class="compare-box original">
+            <span>ORIGINAL — preservado</span>
+            <strong id="originalSaida">—</strong>
+            <small>saída</small>
+            <strong id="originalRetorno">—</strong>
+            <small>retorno</small>
+          </div>
+          <div class="compare-arrow">→</div>
+          <div class="compare-box current">
+            <span>AJUSTADO</span>
+            <label>Nova saída</label>
+            <input id="novaSaida" type="date" />
+            <label>Novo retorno</label>
+            <input id="novoRetorno" type="date" />
+          </div>
+        </div>
+
+        <label class="toggle-inline modal-toggle">
+          <input id="moverRetorno" type="checkbox" />
+          <span id="moverRetornoTexto">Mover o retorno junto ao alterar a saída</span>
+        </label>
+
+        <label>Observação do ajuste</label>
+        <textarea id="ajusteObs" rows="3" placeholder="Ex.: estendeu 4 dias por necessidade operacional"></textarea>
+        <div id="ajusteImpacto" class="impact-box"></div>
+      </div>
+      <div class="modal-actions">
+        <button id="btnReverterAjuste" class="btn danger ghost">Reverter para original</button>
+        <div class="spacer"></div>
+        <button class="btn outline" data-close="modalAjuste">Cancelar</button>
+        <button id="btnSalvarAjuste" class="btn primary">Salvar ajuste</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modalColaborador" class="modal-backdrop hidden" aria-hidden="true">
+    <div class="modal">
+      <div class="modal-head">
+        <div><h2 id="colabModalTitulo">Novo colaborador</h2><p>Cadastre a data de saída que servirá como base do ciclo.</p></div>
+        <button class="icon-close" data-close="modalColaborador">×</button>
+      </div>
+      <div class="modal-body form-grid">
+        <input id="colabId" type="hidden" />
+        <div class="field full"><label>Nome</label><input id="colabNome" type="text" /></div>
+        <div class="field"><label>Escala</label><input id="colabCategoria" type="text" readonly /></div>
+        <div id="fieldFuncao" class="field hidden"><label>Função</label><select id="colabFuncao"><option>SKIDDER</option><option>FELLER</option><option>PC</option><option>PICADOR</option></select></div>
+        <div id="fieldSubtipo" class="field"><label>Tipo</label><select id="colabSubtipo"><option>FIXO</option><option>FOLGUISTA</option><option>FERISTA</option></select></div>
+        <div class="field"><label>Saída base do ciclo</label><input id="colabAnchor" type="date" /></div>
+        <div class="field full"><label>Observação</label><input id="colabObs" type="text" placeholder="Opcional" /></div>
+      </div>
+      <div class="modal-actions">
+        <button id="btnDesativarColab" class="btn danger ghost hidden">Desativar</button>
+        <div class="spacer"></div>
+        <button class="btn outline" data-close="modalColaborador">Cancelar</button>
+        <button id="btnSalvarColab" class="btn primary">Salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modalFerias" class="modal-backdrop hidden" aria-hidden="true">
+    <div class="modal">
+      <div class="modal-head">
+        <div><h2>Férias</h2><p>Férias ficam sobrepostas à escala atual sem apagar a escala original.</p></div>
+        <button class="icon-close" data-close="modalFerias">×</button>
+      </div>
+      <div class="modal-body form-grid">
+        <input id="feriasId" type="hidden" />
+        <div class="field full"><label>Colaborador</label><select id="feriasColaborador"></select></div>
+        <div class="field"><label>Início</label><input id="feriasInicio" type="date" /></div>
+        <div class="field"><label>Fim</label><input id="feriasFim" type="date" /></div>
+        <div class="field full"><label>Observação</label><input id="feriasObs" type="text" /></div>
+        <div class="field full"><label>Férias visíveis no mês</label><div id="feriasExistentes" class="absence-list"></div></div>
+      </div>
+      <div class="modal-actions">
+        <button id="btnCancelarEdicaoFerias" class="btn outline hidden">Cancelar edição</button>
+        <div class="spacer"></div>
+        <button class="btn outline" data-close="modalFerias">Fechar</button>
+        <button id="btnSalvarFerias" class="btn primary">Registrar férias</button>
+      </div>
+    </div>
+  </div>
+
+<div id="modalAuditoria" class="modal-backdrop hidden" aria-hidden="true">
+    <div class="modal wide audit-modal">
+      <div class="modal-head"><div><h2>Log de atividades</h2><p>Quem acessou, o que mudou e valores anteriores e posteriores. Acesso exclusivo do administrador.</p></div><button class="icon-close" data-close="modalAuditoria">×</button></div>
+      <div class="modal-body">
+        <div class="audit-filters"><input id="auditUsuario" placeholder="Filtrar usuário"/><input id="auditAcao" placeholder="Filtrar ação"/><input id="auditInicio" type="date" title="Data inicial"/><input id="auditFim" type="date" title="Data final"/><button id="auditLimpar" class="btn outline">Limpar</button><button id="auditCsv" class="btn export-excel">Baixar CSV desta página</button></div>
+        <div id="auditResumo" class="muted"></div><div id="auditLista" class="audit-list"></div>
+        <div class="modal-actions"><button id="auditAnterior" class="btn outline">Anterior</button><span id="auditPaginacao"></span><button id="auditProximo" class="btn outline">Próxima</button></div>
+      </div>
+    </div>
+  </div>
+  <div id="modalHistorico" class="modal-backdrop hidden" aria-hidden="true">
+    <div class="modal wide">
+      <div class="modal-head"><div><h2>Histórico de versões</h2><p>Backups independentes e imutáveis; a escala atual não é alterada ao consultar versões.</p></div><button class="icon-close" data-close="modalHistorico">×</button></div>
+      <div class="modal-body">
+        <div id="fontesHistoricas" class="history-sources"></div>
+        <div id="historicoCriacao" class="history-creation hidden">
+          <label>Nome para o backup atual</label><input id="backupTitulo" type="text" maxlength="120" value="Escala atual — marco inicial" />
+          <label>Observações</label><input id="backupDescricao" type="text" maxlength="1000" placeholder="Opcional" />
+          <div class="history-buttons"><button id="btnCriarBase" class="btn outline">Preservar base histórica disponível no código</button><button id="btnCriarBackup" class="btn primary">Salvar escala atual agora</button></div>
+          <p class="history-disclaimer">A base do código não comprova como estava a primeira escala publicada. O backup atual será gerado do banco no momento em que você clicar em salvar.</p>
+        </div>
+        <div id="listaBackups" class="history-list"></div>
+      </div>
+      <div class="modal-actions"><div class="spacer"></div><button class="btn outline" data-close="modalHistorico">Fechar</button></div>
+    </div>
+  </div>
+
+  <div id="modalLogin" class="modal-backdrop hidden" aria-hidden="true">
+    <div class="modal small">
+      <div class="modal-head">
+        <div><h2>Login da equipe</h2><p>O acesso público continua somente para visualização.</p></div>
+        <button class="icon-close" data-close="modalLogin">×</button>
+      </div>
+      <div class="modal-body form-grid">
+        <div class="field full"><label>Usuário</label><input id="loginUsuario" type="text" autocomplete="username" /></div>
+        <div class="field full"><label>Senha</label><input id="loginSenha" type="password" autocomplete="current-password" /></div>
+        <div id="loginSetupAviso" class="field full setup-warning hidden"></div>
+      </div>
+      <div class="modal-actions">
+        <div class="spacer"></div>
+        <button class="btn outline" data-close="modalLogin">Cancelar</button>
+        <button id="btnEntrar" class="btn primary">Entrar</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modalUsuarios" class="modal-backdrop hidden" aria-hidden="true">
+    <div class="modal wide">
+      <div class="modal-head">
+        <div><h2>Usuários de edição</h2><p>Administradores gerenciam contas. Usuários e administradores podem editar a escala.</p></div>
+        <button class="icon-close" data-close="modalUsuarios">×</button>
+      </div>
+      <div class="modal-body users-layout">
+        <div class="user-create-card">
+          <h3>Novo acesso</h3>
+          <div class="form-grid">
+            <div class="field"><label>Usuário</label><input id="novoUsuario" type="text" placeholder="ex.: equipe1" /></div>
+            <div class="field"><label>Nome</label><input id="novoUsuarioNome" type="text" placeholder="Nome da pessoa/equipe" /></div>
+            <div class="field"><label>Perfil</label><select id="novoUsuarioRole"><option value="USUARIO">Usuário</option><option value="ADMIN">Administrador</option></select></div>
+            <div class="field"><label>Senha inicial</label><input id="novoUsuarioSenha" type="password" minlength="8" /></div>
+          </div>
+          <button id="btnCriarUsuario" class="btn primary">Criar acesso</button>
+        </div>
+        <div>
+          <h3>Acessos existentes</h3>
+          <div id="listaUsuarios" class="users-list"></div>
+        </div>
+      </div>
+      <div class="modal-actions"><div class="spacer"></div><button class="btn outline" data-close="modalUsuarios">Fechar</button></div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+  <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.4/dist/jspdf.plugin.autotable.min.js"></script>
+  <script src="app.js?v=5.5.0"></script>
+</body>
+</html>
