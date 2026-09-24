@@ -229,6 +229,9 @@ async function initDb() {
       UNIQUE(colaborador_id, base_saida)
     )`);
 
+    // Migração aditiva: ajustes antigos permanecem exclusivos do ciclo original.
+    await pool.query(`ALTER TABLE ajustes_v5 ADD COLUMN IF NOT EXISTS escopo TEXT NOT NULL DEFAULT 'UNICO'`);
+
     await pool.query(`CREATE TABLE IF NOT EXISTS ausencias_v5 (
       id BIGSERIAL PRIMARY KEY,
       colaborador_id BIGINT NOT NULL REFERENCES colaboradores_v5(id) ON DELETE CASCADE,
@@ -357,23 +360,33 @@ function gerarCiclosBase(emp, start, end, ajustesMap) {
   const n0 = Math.floor(diffDays(start, anchor) / cycleLen) - 2;
   const n1 = Math.ceil(diffDays(end, anchor) / cycleLen) + 2;
   const cycles = [];
+  // Carrega também a série que começou ANTES da janela exibida; mudar de mês não perde a recorrência.
+  const ajustesOrdenados = [...ajustesMap.values()].sort((a,b) => a.base_saida.localeCompare(b.base_saida));
+  let indice = 0;
+  let serie = null;
 
   for (let n = n0; n <= n1; n++) {
-    const baseExitDate = addDays(anchor, n * cycleLen);
-    const baseReturnDate = addDays(baseExitDate, Number(emp.regime_folga));
-    const base_saida = fmtISO(baseExitDate);
-    const base_retorno = fmtISO(baseReturnDate);
-    const adj = ajustesMap.get(base_saida);
-    const nova_saida = adj ? adj.nova_saida : base_saida;
-    const novo_retorno = adj ? adj.novo_retorno : base_retorno;
+    const base_saida = fmtISO(addDays(anchor, n * cycleLen));
+    const base_retorno = fmtISO(addDays(base_saida, Number(emp.regime_folga)));
+    while (indice < ajustesOrdenados.length && ajustesOrdenados[indice].base_saida <= base_saida) {
+      const marcador = ajustesOrdenados[indice++];
+      if (marcador.escopo === 'SEGUINTES') serie = marcador;
+    }
+    const proprio = ajustesMap.get(base_saida);
+    const origem = proprio || serie;
+    const herdado = !proprio && !!serie;
+    const deslocamentoSaida = origem ? diffDays(origem.nova_saida, origem.base_saida) : 0;
+    const deslocamentoRetorno = origem ? diffDays(origem.novo_retorno, origem.base_retorno) : 0;
+    const nova_saida = origem ? (herdado ? fmtISO(addDays(base_saida, deslocamentoSaida)) : origem.nova_saida) : base_saida;
+    const novo_retorno = origem ? (herdado ? fmtISO(addDays(base_retorno, deslocamentoRetorno)) : origem.novo_retorno) : base_retorno;
     cycles.push({
-      base_saida,
-      base_retorno,
-      nova_saida,
-      novo_retorno,
-      adjusted: !!adj,
-      adjustment_id: adj ? adj.id : null,
-      observacao: adj ? adj.observacao : ''
+      base_saida,base_retorno,nova_saida,novo_retorno,
+      adjusted: !!origem,
+      adjustment_id: proprio ? proprio.id : null,
+      escopo: proprio?.escopo || (herdado ? 'HERDADO' : 'ORIGINAL'),
+      serie_inicio: serie?.base_saida || null,
+      serie_inicio_propria: proprio?.escopo === 'SEGUINTES' ? base_saida : (herdado ? serie.base_saida : null),
+      observacao: origem?.observacao || ''
     });
   }
   return cycles;
@@ -841,56 +854,118 @@ function baseCycleValid(emp, base_saida) {
   return ((delta % cycleLen) + cycleLen) % cycleLen === 0;
 }
 
+// Valida a sequência efetiva, incluindo os ciclos herdados e os ajustes manuais futuros.
+// Assim um ajuste em série não sobrepõe silenciosamente a folga de outro ciclo.
+function conflitoCronologico(emp, ajustes, baseSaida) {
+  const tam = Number(emp.regime_trabalho) + Number(emp.regime_folga);
+  const indices = new Set();
+  for (const a of [...ajustes, {base_saida:baseSaida}]) {
+    const n = Math.round(diffDays(a.base_saida, emp.anchor_saida) / tam);
+    for (let x = n - 3; x <= n + 4; x++) indices.add(x);
+  }
+  const min = Math.min(...indices), max = Math.max(...indices);
+  if (!Number.isFinite(min) || !Number.isFinite(max)) return 'Ciclo inválido.';
+  // Verifica as adjacências de cada marco. Cada trecho entre marcos é periódico.
+  const porSaida = new Map(ajustes.map(a=>[a.base_saida,a]));
+  const ordered = [...indices].sort((a,b)=>a-b);
+  for (const n of ordered) {
+    const inicio = fmtISO(addDays(emp.anchor_saida, (n-1)*tam));
+    const fim = fmtISO(addDays(emp.anchor_saida, (n+2)*tam));
+    const pair = gerarCiclosBase(emp,parseISO(inicio),parseISO(fim),porSaida)
+      .filter(c => c.base_saida >= inicio && c.base_saida <= fim);
+    for (let k=0;k<pair.length;k++) {
+      const c=pair[k];
+      if (c.novo_retorno <= c.nova_saida) return `Retorno inválido no ciclo ${c.base_saida}.`;
+      if (k+1<pair.length && c.novo_retorno >= pair[k+1].nova_saida)
+        return `O retorno de ${c.base_saida} (${c.novo_retorno}) alcança a saída do ciclo seguinte (${pair[k+1].nova_saida}).`;
+    }
+  }
+  return null;
+}
+
+async function gravarLogAjuste(client,req,colaboradorId,acao,antes,depois,baseSaida) {
+  const details={antes,depois,base_saida:baseSaida,escopo:depois?.escopo || antes?.escopo || 'UNICO'};
+  await client.query(`INSERT INTO historico_v5(colaborador_id,acao,payload) VALUES ($1,$2,$3)`,
+    [colaboradorId,acao,JSON.stringify({...details,autor_usuario:req.auth.username,autor_id:req.auth.id})]);
+  await client.query(`INSERT INTO auditoria_escala_v5
+    (autor_id,autor_usuario,autor_nome,acao,entidade,entidade_id,antes,depois,detalhes)
+    VALUES ($1,$2,$3,$4,'COLABORADOR',$5,$6::jsonb,$7::jsonb,$8::jsonb)`,
+    [req.auth.id,req.auth.username,req.auth.nome||'',acao,String(colaboradorId),
+      antes?JSON.stringify(antes):null,depois?JSON.stringify(depois):null,JSON.stringify({base_saida:baseSaida,escopo:details.escopo})]);
+}
+
 app.post('/api/v5/ajustes', requireEditor, async (req, res) => {
+  let client;
   try {
     const colaboradorId = Number(req.body.colaborador_id);
     const emp = await getEmployee(colaboradorId);
-    if (!emp) return res.status(404).json({ erro: 'Colaborador não encontrado.' });
+    if (!emp) return res.status(404).json({ erro:'Colaborador não encontrado.' });
     const baseSaida = String(req.body.base_saida || '');
-    if (!baseCycleValid(emp, baseSaida)) return res.status(400).json({ erro: 'Ciclo original inválido para esse colaborador.' });
-    const baseRetorno = fmtISO(addDays(parseISO(baseSaida), Number(emp.regime_folga)));
-    const novaSaida = String(req.body.nova_saida || baseSaida);
-    const novoRetorno = String(req.body.novo_retorno || baseRetorno);
-    if (!parseISO(novaSaida) || !parseISO(novoRetorno) || diffDays(novoRetorno, novaSaida) <= 0) return res.status(400).json({ erro: 'Saída e retorno ajustados são inválidos.' });
-
-    const cycleLen = Number(emp.regime_trabalho) + Number(emp.regime_folga);
-    const prevBase = fmtISO(addDays(parseISO(baseSaida), -cycleLen));
-    const nextBase = fmtISO(addDays(parseISO(baseSaida), cycleLen));
-    const prevAdj = await dbGet('SELECT * FROM ajustes_v5 WHERE colaborador_id=? AND base_saida=?', [colaboradorId, prevBase]);
-    const nextAdj = await dbGet('SELECT * FROM ajustes_v5 WHERE colaborador_id=? AND base_saida=?', [colaboradorId, nextBase]);
-    const prevReturn = prevAdj ? prevAdj.novo_retorno : fmtISO(addDays(parseISO(prevBase), Number(emp.regime_folga)));
-    const nextExit = nextAdj ? nextAdj.nova_saida : nextBase;
-    if (novaSaida < prevReturn) return res.status(400).json({ erro: `A nova saída não pode ficar antes do retorno do ciclo anterior (${prevReturn}).` });
-    if (novoRetorno >= nextExit) return res.status(400).json({ erro: `O novo retorno precisa acontecer antes da próxima saída (${nextExit}).` });
-
-    const before = await dbGet('SELECT * FROM ajustes_v5 WHERE colaborador_id=? AND base_saida=?', [colaboradorId, baseSaida]);
-    if (novaSaida === baseSaida && novoRetorno === baseRetorno && !String(req.body.observacao || '').trim()) {
-      await dbRun('DELETE FROM ajustes_v5 WHERE colaborador_id=? AND base_saida=?', [colaboradorId, baseSaida]);
-    } else {
-      await dbRun(`INSERT INTO ajustes_v5(colaborador_id,base_saida,base_retorno,nova_saida,novo_retorno,observacao)
-        VALUES (?,?,?,?,?,?)
-        ON CONFLICT(colaborador_id,base_saida) DO UPDATE SET
-          base_retorno=excluded.base_retorno,
-          nova_saida=excluded.nova_saida,
-          novo_retorno=excluded.novo_retorno,
-          observacao=excluded.observacao,
-          atualizado_em=CURRENT_TIMESTAMP`, [colaboradorId,baseSaida,baseRetorno,novaSaida,novoRetorno,String(req.body.observacao || '')]);
-    }
-    const after = await dbGet('SELECT * FROM ajustes_v5 WHERE colaborador_id=? AND base_saida=?', [colaboradorId, baseSaida]);
-    await registrarAlteracao(req,colaboradorId,'AJUSTAR_CICLO',{ antes: before, depois: after, base: { saida: baseSaida, retorno: baseRetorno } });
-    res.json({ ok: true, base_saida: baseSaida, base_retorno: baseRetorno, nova_saida: novaSaida, novo_retorno: novoRetorno });
-  } catch (err) { console.error(err); res.status(500).json({ erro: err.message }); }
+    if (!baseCycleValid(emp,baseSaida)) return res.status(400).json({erro:'Ciclo original inválido para esse colaborador.'});
+    const baseRetorno = fmtISO(addDays(baseSaida, Number(emp.regime_folga)));
+    const novaSaida = String(req.body.nova_saida || '');
+    const novoRetorno = String(req.body.novo_retorno || '');
+    const escopo = String(req.body.escopo || 'UNICO');
+    if (!['UNICO','SEGUINTES'].includes(escopo)) return res.status(400).json({erro:'Tipo de aplicação inválido.'});
+    if (!parseISO(novaSaida) || !parseISO(novoRetorno) || novoRetorno <= novaSaida)
+      return res.status(400).json({erro:'Informe saída e retorno válidos.'});
+    const folga = diffDays(novoRetorno,novaSaida);
+    if (escopo === 'SEGUINTES' && folga !== Number(emp.regime_folga))
+      return res.status(400).json({erro:`Para repetir nos próximos ciclos, mantenha ${emp.regime_folga} dias de folga. Para mudar a duração apenas desta vez, selecione Somente este ciclo.`});
+    const deltaSaida=diffDays(novaSaida,baseSaida);
+    const deltaRetorno=diffDays(novoRetorno,baseRetorno);
+    const limite = Number(emp.regime_trabalho) - 1;
+    if (escopo === 'SEGUINTES' && (Math.abs(deltaSaida)>limite || Math.abs(deltaRetorno)>limite || deltaSaida!==deltaRetorno))
+      return res.status(400).json({erro:`Na repetição, desloque saída e retorno pelo mesmo número de dias, em até ${limite} dia(s), para não sobrepor ciclos.`});
+    const observacao=String(req.body.observacao || '').slice(0,3000);
+    client=await pool.connect();
+    await client.query('BEGIN');
+    // Serializa edições do mesmo colaborador, inclusive dois administradores simultâneos.
+    await client.query('SELECT pg_advisory_xact_lock($1::bigint)',[colaboradorId]);
+    const rows=(await client.query('SELECT * FROM ajustes_v5 WHERE colaborador_id=$1 ORDER BY base_saida',[colaboradorId])).rows;
+    const antes=rows.find(a=>a.base_saida===baseSaida)||null;
+    // Um registro local com datas originais é mantido se substitui uma recorrência anterior.
+    const seriesAnteriores=rows.some(a=>a.escopo==='SEGUINTES' && a.base_saida < baseSaida);
+    const eliminar=escopo==='UNICO' && novaSaida===baseSaida && novoRetorno===baseRetorno && !observacao.trim() && !seriesAnteriores;
+    const proposta=rows.filter(a=>a.base_saida!==baseSaida);
+    if (!eliminar) proposta.push({colaborador_id:colaboradorId,base_saida:baseSaida,base_retorno:baseRetorno,nova_saida:novaSaida,novo_retorno:novoRetorno,observacao,escopo});
+    const conflito=conflitoCronologico(emp,proposta,baseSaida);
+    if (conflito) { await client.query('ROLLBACK');return res.status(409).json({erro:conflito}); }
+    if (eliminar) await client.query('DELETE FROM ajustes_v5 WHERE colaborador_id=$1 AND base_saida=$2',[colaboradorId,baseSaida]);
+    else await client.query(`INSERT INTO ajustes_v5(colaborador_id,base_saida,base_retorno,nova_saida,novo_retorno,observacao,escopo)
+      VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(colaborador_id,base_saida) DO UPDATE SET
+      base_retorno=excluded.base_retorno,nova_saida=excluded.nova_saida,novo_retorno=excluded.novo_retorno,
+      observacao=excluded.observacao,escopo=excluded.escopo,atualizado_em=CURRENT_TIMESTAMP`,
+      [colaboradorId,baseSaida,baseRetorno,novaSaida,novoRetorno,observacao,escopo]);
+    const depois=(await client.query('SELECT * FROM ajustes_v5 WHERE colaborador_id=$1 AND base_saida=$2',[colaboradorId,baseSaida])).rows[0]||null;
+    await gravarLogAjuste(client,req,colaboradorId,'AJUSTAR_CICLO',antes,depois,baseSaida);
+    await client.query('COMMIT');
+    res.json({ok:true,base_saida:baseSaida,base_retorno:baseRetorno,nova_saida:novaSaida,novo_retorno:novoRetorno,escopo});
+  } catch(err) {
+    if(client) await client.query('ROLLBACK').catch(()=>{});
+    console.error('[AJUSTES]',err);res.status(500).json({erro:'Não foi possível salvar o ajuste.'});
+  } finally {if(client)client.release();}
 });
 
-app.delete('/api/v5/ajustes', requireEditor, async (req, res) => {
+app.delete('/api/v5/ajustes',requireEditor,async(req,res)=>{
+  let client;
   try {
-    const colaboradorId = Number(req.query.colaborador_id);
-    const baseSaida = String(req.query.base_saida || '');
-    const before = await dbGet('SELECT * FROM ajustes_v5 WHERE colaborador_id=? AND base_saida=?', [colaboradorId, baseSaida]);
-    await dbRun('DELETE FROM ajustes_v5 WHERE colaborador_id=? AND base_saida=?', [colaboradorId, baseSaida]);
-    if (before) await registrarAlteracao(req,colaboradorId,'REVERTER_AJUSTE',{antes:before,depois:null});
-    res.json({ ok: true });
-  } catch (err) { res.status(500).json({ erro: err.message }); }
+    const colaboradorId=Number(req.query.colaborador_id);
+    const baseSaida=String(req.query.base_saida||'');
+    const emp=await getEmployee(colaboradorId);
+    if(!emp || !baseCycleValid(emp,baseSaida))return res.status(400).json({erro:'Colaborador ou ciclo inválido.'});
+    client=await pool.connect();await client.query('BEGIN');
+    await client.query('SELECT pg_advisory_xact_lock($1::bigint)',[colaboradorId]);
+    const antes=(await client.query('SELECT * FROM ajustes_v5 WHERE colaborador_id=$1 AND base_saida=$2',[colaboradorId,baseSaida])).rows[0];
+    if(!antes){await client.query('ROLLBACK');return res.status(404).json({erro:'Ajuste não encontrado.'});}
+    const restante=(await client.query('SELECT * FROM ajustes_v5 WHERE colaborador_id=$1 AND base_saida<>$2',[colaboradorId,baseSaida])).rows;
+    const conflito=conflitoCronologico(emp,restante,baseSaida);
+    if(conflito){await client.query('ROLLBACK');return res.status(409).json({erro:conflito});}
+    await client.query('DELETE FROM ajustes_v5 WHERE id=$1',[antes.id]);
+    await gravarLogAjuste(client,req,colaboradorId,'REVERTER_AJUSTE',antes,null,baseSaida);
+    await client.query('COMMIT');res.json({ok:true,serie_removida:antes.escopo==='SEGUINTES'});
+  }catch(err){if(client)await client.query('ROLLBACK').catch(()=>{});console.error('[REVERTER_AJUSTE]',err);res.status(500).json({erro:'Não foi possível reverter o ajuste.'});}
+  finally{if(client)client.release();}
 });
 
 app.post('/api/v5/ferias', requireEditor, async (req, res) => {

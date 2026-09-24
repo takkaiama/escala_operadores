@@ -29,7 +29,7 @@ function bind(){
   document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',()=>closeModal(b.dataset.close)));
   document.querySelectorAll('.modal-backdrop').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)closeModal(m.id)}));
   document.addEventListener('keydown',e=>{if(e.key==='Escape')document.querySelectorAll('.modal-backdrop:not(.hidden)').forEach(m=>closeModal(m.id))});
-  el('ajusteCiclo').addEventListener('change',fillAdjustmentCycle); el('novaSaida').addEventListener('change',onNewExitChanged); el('novoRetorno').addEventListener('change',updateImpact); el('moverRetorno').addEventListener('change',()=>{if(el('moverRetorno').checked)onNewExitChanged();else updateImpact()});
+  document.querySelectorAll('input[name="ajusteEscopo"]').forEach(r=>r.addEventListener('change',updateImpact)); el('ajusteCiclo').addEventListener('change',fillAdjustmentCycle); el('novaSaida').addEventListener('change',onNewExitChanged); el('novoRetorno').addEventListener('change',updateImpact); el('moverRetorno').addEventListener('change',()=>{if(el('moverRetorno').checked)onNewExitChanged();else updateImpact()});
   el('btnSalvarAjuste').addEventListener('click',saveAdjustment); el('btnReverterAjuste').addEventListener('click',revertAdjustment);
   el('btnSalvarColab').addEventListener('click',saveEmployee); el('btnDesativarColab').addEventListener('click',deactivateEmployee);
   el('btnSalvarFerias').addEventListener('click',saveVacation); el('feriasColaborador').addEventListener('change',()=>{resetVacationForm(false);renderExistingVacations()}); el('btnCancelarEdicaoFerias').addEventListener('click',()=>resetVacationForm());
@@ -154,11 +154,60 @@ function openModal(id){el(id).classList.remove('hidden');el(id).setAttribute('ar
 function closeModal(id){el(id).classList.add('hidden');el(id).setAttribute('aria-hidden','true')}
 function openAdjustment(id,day){if(!canEdit()){toast('Faça login para editar a escala.');return}const e=findEmployee(id);if(!e)return;if(!e.anchor_saida){toast('Defina primeiro a data base deste colaborador.');return}state.selectedEmployee=e;el('ajusteNome').textContent=`${e.nome} · ${e.funcao||e.subtipo||''} · regime ${e.regime_trabalho}/${e.regime_folga}`;const sel=el('ajusteCiclo');sel.innerHTML=e.cycles.map((c,i)=>`<option value="${i}">${fmtBR(c.base_saida)} → ${fmtBR(c.base_retorno)}${c.adjusted?' · AJUSTADO':''}</option>`).join('');if(day){const target=`${state.data.ano}-${String(state.data.mes).padStart(2,'0')}-${String(day).padStart(2,'0')}`;let best=0,bestD=1e9;e.cycles.forEach((c,i)=>{const d=Math.abs(daysBetween(c.base_saida,target));if(d<bestD){best=i;bestD=d}});sel.value=String(best)}fillAdjustmentCycle();openModal('modalAjuste')}
 function selectedCycle(){const e=state.selectedEmployee;if(!e)return null;return e.cycles[Number(el('ajusteCiclo').value||0)]}
-function fillAdjustmentCycle(){const e=state.selectedEmployee,c=selectedCycle();if(!e||!c)return;el('originalSaida').textContent=fmtBR(c.base_saida);el('originalRetorno').textContent=fmtBR(c.base_retorno);el('novaSaida').value=c.nova_saida;el('novoRetorno').value=c.novo_retorno;el('ajusteObs').value=c.observacao||'';el('moverRetornoTexto').textContent=`Mover o retorno junto e manter ${e.regime_folga} dias de folga`;el('moverRetorno').checked=false;el('btnReverterAjuste').classList.toggle('hidden',!c.adjusted);updateImpact()}
+function ajusteEscopoSelecionado(){return document.querySelector('input[name="ajusteEscopo"]:checked')?.value||'UNICO'}
+function fillAdjustmentCycle(){
+  const e=state.selectedEmployee,c=selectedCycle();if(!e||!c)return;
+  el('originalSaida').textContent=fmtBR(c.base_saida);el('originalRetorno').textContent=fmtBR(c.base_retorno);
+  el('novaSaida').value=c.nova_saida;el('novoRetorno').value=c.novo_retorno;
+  el('ajusteObs').value=c.escopo==='HERDADO'?'':(c.observacao||'');
+  el('moverRetornoTexto').textContent=`Mover o retorno junto e manter ${e.regime_folga} dias de folga`;
+  el('moverRetorno').checked=false;
+  // Em ciclo herdado, uma exceção pontual não altera o início da série anterior.
+  document.querySelector(`input[name="ajusteEscopo"][value="${c.escopo==='SEGUINTES'?'SEGUINTES':'UNICO'}"]`).checked=true;
+  el('btnReverterAjuste').classList.toggle('hidden',!c.adjusted);
+  el('btnReverterAjuste').textContent=c.escopo==='HERDADO'?'Reverter a série inteira':'Reverter para original';
+  updateImpact();
+}
 function onNewExitChanged(){const e=state.selectedEmployee;if(el('moverRetorno').checked&&e&&el('novaSaida').value)el('novoRetorno').value=addDaysISO(el('novaSaida').value,Number(e.regime_folga));updateImpact()}
-function updateImpact(){const e=state.selectedEmployee,c=selectedCycle();if(!e||!c)return;const nova=el('novaSaida').value,ret=el('novoRetorno').value;if(!nova||!ret){el('ajusteImpacto').textContent='Informe nova saída e novo retorno.';return}const shift=daysBetween(c.base_saida,nova);const off=daysBetween(nova,ret);const newWork=(Number(e.regime_trabalho)+Number(e.regime_folga))-off;const delta=newWork-Number(e.regime_trabalho);el('ajusteImpacto').innerHTML=`A saída foi deslocada <b>${shift>=0?'+':''}${shift} dia(s)</b>. Folga neste ciclo: <b>${off} dia(s)</b>. Trabalho no ciclo: <b>${e.regime_trabalho} → ${newWork} dia(s)</b> <span style="color:#7c3aed">(${delta>=0?'+':''}${delta})</span>. A escala mensal será recalculada automaticamente.`}
-async function saveAdjustment(){return guarded('saveAdjustment',async()=>{const e=state.selectedEmployee,c=selectedCycle();if(!e||!c)return;try{await request(`${API}/ajustes`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({colaborador_id:e.id,base_saida:c.base_saida,nova_saida:el('novaSaida').value,novo_retorno:el('novoRetorno').value,observacao:el('ajusteObs').value})});closeModal('modalAjuste');toast('Ajuste salvo. A escala original foi preservada.');await carregar()}catch(err){toast(err.message)}})}
-async function revertAdjustment(){return guarded('revertAdjustment',async()=>{const e=state.selectedEmployee,c=selectedCycle();if(!e||!c)return;if(!confirm(`Reverter ${e.nome} para as datas originais deste ciclo?`))return;try{await request(`${API}/ajustes?colaborador_id=${e.id}&base_saida=${encodeURIComponent(c.base_saida)}`,{method:'DELETE'});closeModal('modalAjuste');toast('Ciclo revertido para o original.');await carregar()}catch(err){toast(err.message)}})}
+function updateImpact(){
+  const e=state.selectedEmployee,c=selectedCycle();if(!e||!c)return;
+  const nova=el('novaSaida').value,ret=el('novoRetorno').value;
+  if(!nova||!ret){el('ajusteImpacto').textContent='Informe nova saída e novo retorno.';return}
+  const shift=daysBetween(c.base_saida,nova),off=daysBetween(nova,ret);
+  const newWork=(Number(e.regime_trabalho)+Number(e.regime_folga))-off;
+  const delta=newWork-Number(e.regime_trabalho);
+  const recorrente=ajusteEscopoSelecionado()==='SEGUINTES';
+  el('ajusteImpacto').innerHTML=`A saída foi deslocada <b>${shift>=0?'+':''}${shift} dia(s)</b>. Folga neste ciclo: <b>${off} dia(s)</b>. Trabalho no ciclo: <b>${e.regime_trabalho} → ${newWork} dia(s)</b> <span style="color:#7c3aed">(${delta>=0?'+':''}${delta})</span>. ${recorrente?'Os ciclos futuros repetirão o mesmo deslocamento.':'Somente este ciclo será modificado.'}`;
+  const avisos=[];
+  if(recorrente&&off!==Number(e.regime_folga))avisos.push(`Para repetir o ajuste, mantenha ${e.regime_folga} dias de folga; ajuste o retorno ou escolha Somente este ciclo.`);
+  if(c.escopo==='HERDADO')avisos.push(`Este ciclo recebe um ajuste recorrente iniciado em ${fmtBR(c.serie_inicio_propria)}. Uma alteração pontual aqui não encerra a série.`);
+  if(c.escopo==='SEGUINTES'&&!recorrente)avisos.push('Ao salvar como Somente este ciclo, a repetição anterior será encerrada a partir deste ciclo.');
+  el('ajusteEscopoAviso').textContent=avisos.join(' ');
+}
+async function saveAdjustment(){return guarded('saveAdjustment',async()=>{
+  const e=state.selectedEmployee,c=selectedCycle();if(!e||!c)return;
+  const escopo=ajusteEscopoSelecionado();
+  if(escopo==='SEGUINTES'&&daysBetween(el('novaSaida').value,el('novoRetorno').value)!==Number(e.regime_folga)){
+    toast(`Para repetir, mantenha ${e.regime_folga} dias de folga.`);return;
+  }
+  if(c.escopo==='SEGUINTES'&&escopo==='UNICO'&&!confirm('Este ciclo iniciava uma repetição. Salvar como pontual encerrará essa repetição nos meses seguintes. Continuar?'))return;
+  try{
+    await request(`${API}/ajustes`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({colaborador_id:e.id,base_saida:c.base_saida,nova_saida:el('novaSaida').value,novo_retorno:el('novoRetorno').value,observacao:el('ajusteObs').value,escopo})});
+    closeModal('modalAjuste');toast(escopo==='SEGUINTES'?'Ajuste aplicado a este ciclo e aos futuros.':'Ajuste pontual salvo; demais ciclos preservados.');await carregar();
+  }catch(err){toast(err.message)}
+})}
+async function revertAdjustment(){return guarded('revertAdjustment',async()=>{
+  const e=state.selectedEmployee,c=selectedCycle();if(!e||!c)return;
+  const herdado=c.escopo==='HERDADO';
+  const origem=herdado?c.serie_inicio_propria:c.base_saida;
+  const msg=herdado?`Reverter a série iniciada em ${fmtBR(origem)}? Todos os ciclos que herdam essa série serão recalculados; ajustes individuais continuarão salvos.`:
+    c.escopo==='SEGUINTES'?`Reverter a série iniciada em ${fmtBR(origem)}? Todos os ciclos seguintes que herdam essa série serão recalculados.`:`Reverter apenas o ajuste deste ciclo de ${e.nome}?`;
+  if(!confirm(msg))return;
+  try{await request(`${API}/ajustes?colaborador_id=${e.id}&base_saida=${encodeURIComponent(origem)}`,{method:'DELETE'});
+    closeModal('modalAjuste');toast(herdado||c.escopo==='SEGUINTES'?'Série removida e meses seguintes recalculados.':'Ajuste do ciclo revertido.');await carregar();
+  }catch(err){toast(err.message)}
+})}
+
 function openEmployeeModal(id=null){if(!canEdit()){toast('Faça login para editar a escala.');return}const e=id?findEmployee(id):null;state.selectedEmployee=e;el('colabModalTitulo').textContent=e?'Editar colaborador':'Novo colaborador';el('colabId').value=e?.id||'';el('colabNome').value=e?.nome||'';el('colabCategoria').value=state.categoria==='MOTORISTA'?'Motorista — 23/7':'Operador — 24/6';el('fieldFuncao').classList.toggle('hidden',state.categoria!=='OPERADOR');el('fieldSubtipo').classList.toggle('hidden',state.categoria!=='MOTORISTA');el('colabFuncao').value=e?.funcao||state.funcao||'SKIDDER';el('colabSubtipo').value=e?.subtipo||'FIXO';el('colabAnchor').value=e?.anchor_saida||'';el('colabObs').value=e?.observacao||'';el('btnDesativarColab').classList.toggle('hidden',!e);openModal('modalColaborador')}
 async function saveEmployee(){return guarded('saveEmployee',async()=>{const id=Number(el('colabId').value||0);const body={nome:el('colabNome').value,categoria:state.categoria,funcao:el('colabFuncao').value,subtipo:el('colabSubtipo').value,anchor_saida:el('colabAnchor').value,observacao:el('colabObs').value};try{await request(id?`${API}/colaboradores/${id}`:`${API}/colaboradores`,{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});closeModal('modalColaborador');toast(id?'Cadastro atualizado.':'Colaborador adicionado.');await carregar()}catch(err){toast(err.message)}})}
 async function quickDeactivate(id){const e=findEmployee(id);if(!e)return;if(!confirm(`Excluir ${e.nome} da escala?\n\nO cadastro será desativado, mas o histórico e os ajustes serão preservados.`))return;return guarded(`deleteEmployee:${id}`,async()=>{try{await request(`${API}/colaboradores/${id}`,{method:'DELETE'});toast('Colaborador removido da escala. Histórico preservado.');await carregar()}catch(err){toast(err.message)}})}

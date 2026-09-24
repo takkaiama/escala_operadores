@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Escala BIOTEC</title>
-  <link rel="stylesheet" href="style.css?v=5.5.0" />
+  <link rel="stylesheet" href="style.css?v=5.6.0" />
 </head>
 <body>
   <div class="app-shell">
@@ -125,6 +125,15 @@
           <input id="moverRetorno" type="checkbox" />
           <span id="moverRetornoTexto">Mover o retorno junto ao alterar a saída</span>
         </label>
+
+        <fieldset class="ajuste-escopo" aria-label="Aplicação do ajuste">
+          <legend>Onde aplicar este ajuste?</legend>
+          <label class="ajuste-escopo-opcao"><input type="radio" name="ajusteEscopo" value="UNICO" checked />
+            <span><strong>Somente este ciclo</strong><small>Não altera os próximos ciclos; se a folga ultrapassar o mês, os dias correspondentes aparecem no mês seguinte.</small></span></label>
+          <label class="ajuste-escopo-opcao"><input type="radio" name="ajusteEscopo" value="SEGUINTES" />
+            <span><strong>Este ciclo e todos os seguintes</strong><small>Repete o deslocamento das datas em cada ciclo futuro, mantendo o regime e os dias de folga.</small></span></label>
+        </fieldset>
+        <div id="ajusteEscopoAviso" class="ajuste-escopo-aviso" role="status"></div>
 
         <label>Observação do ajuste</label>
         <textarea id="ajusteObs" rows="3" placeholder="Ex.: estendeu 4 dias por necessidade operacional"></textarea>
@@ -262,6 +271,6 @@
   <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.4/dist/jspdf.plugin.autotable.min.js"></script>
-  <script src="app.js?v=5.5.0"></script>
+  <script src="app.js?v=5.6.0"></script>
 </body>
 </html>

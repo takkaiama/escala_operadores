@@ -1,13 +1,14 @@
 {
   "name": "escala-biotec-netlify-test",
-  "version": "5.5.0-historico-auditoria",
+  "version": "5.6.0-escopo-ajustes",
   "private": true,
   "description": "Escala BIOTEC para Netlify Functions + PostgreSQL, com acesso público somente leitura, login de edição, gestão de usuários e exportações Excel/PDF.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "dev": "netlify dev",
-    "build": "node -e \"console.log('Build Netlify pronto')\""
+    "build": "node -e \"console.log('Build Netlify pronto')\"",
+    "test": "node --test tests/*.test.cjs"
   },
   "engines": {
     "node": ">=20 <23"

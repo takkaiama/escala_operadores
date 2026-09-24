@@ -49,3 +49,14 @@ table{border-collapse:separate;border-spacing:0;width:max-content;min-width:100%
 @media print{.history-banner{display:none!important}}
 
 .audit-modal{max-width:1150px}.audit-filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}.audit-filters input{min-width:125px;flex:1}.audit-list{max-height:54vh;overflow:auto;display:grid;gap:10px;margin-top:10px}.audit-entry{border:1px solid #c2ccda;border-radius:9px;padding:10px}.audit-entry-header{font-weight:700;margin-bottom:8px}.audit-compare{display:grid;grid-template-columns:1fr 1fr;gap:10px}.audit-compare>div{min-width:0}.audit-entry pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:180px;overflow:auto;background:#f3f5f9;color:#152030;padding:8px;border-radius:5px;font-size:12px}@media(max-width:650px){.audit-compare{grid-template-columns:1fr}}
+
+/* Aplicação pontual ou continuada do ajuste de ciclo. */
+.ajuste-escopo{border:1px solid #cbd5e1;border-radius:10px;margin:14px 0;padding:10px 12px;display:grid;gap:9px}
+.ajuste-escopo legend{font-size:12px;font-weight:800;color:#334155;padding:0 5px}
+.ajuste-escopo-opcao{display:flex;align-items:flex-start;gap:10px;cursor:pointer;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px}
+.ajuste-escopo-opcao:has(input:checked){background:#eff6ff;border-color:#93c5fd}
+.ajuste-escopo-opcao input{width:16px;min-width:16px;margin:2px 0 0;accent-color:#2563eb}
+.ajuste-escopo-opcao span{display:grid;gap:3px}
+.ajuste-escopo-opcao strong{font-size:12px;color:#0f172a}
+.ajuste-escopo-opcao small{font-size:11px;color:#475569;line-height:1.4}
+.ajuste-escopo-aviso{font-size:11px;color:#92400e;line-height:1.5}
