@@ -60,3 +60,13 @@ table{border-collapse:separate;border-spacing:0;width:max-content;min-width:100%
 .ajuste-escopo-opcao strong{font-size:12px;color:#0f172a}
 .ajuste-escopo-opcao small{font-size:11px;color:#475569;line-height:1.4}
 .ajuste-escopo-aviso{font-size:11px;color:#92400e;line-height:1.5}
+
+/* v5.7 — comparação operacional dos ajustes e impacto de recorrência */
+.audit-state{display:grid;grid-template-columns:minmax(110px,34%) minmax(0,1fr);gap:6px 9px;padding:10px;margin:5px 0 0;border-radius:8px;background:#f4f7fb;font-size:12px;line-height:1.4}
+.audit-state dt{font-weight:750;color:#42546d}.audit-state dd{margin:0;overflow-wrap:anywhere;color:#152030}
+.audit-entry details{margin-top:9px;border-top:1px solid #e2e8f0;padding-top:8px}
+.audit-entry summary{cursor:pointer;font-size:12px;color:#234267;font-weight:700}
+.audit-note{font-size:11px;color:#475569;line-height:1.45}
+.audit-impact-row{padding:8px;border:1px solid #dae1ec;border-radius:8px;display:grid;gap:3px;margin-top:6px;font-size:11px;background:#f8fafc}
+.audit-impact-row strong{font-size:12px}
+.audit-impact-row span{overflow-wrap:anywhere}

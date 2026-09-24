@@ -883,15 +883,69 @@ function conflitoCronologico(emp, ajustes, baseSaida) {
   return null;
 }
 
-async function gravarLogAjuste(client,req,colaboradorId,acao,antes,depois,baseSaida) {
-  const details={antes,depois,base_saida:baseSaida,escopo:depois?.escopo || antes?.escopo || 'UNICO'};
+// Captura a programação efetiva, mesmo quando nenhum ajuste estava gravado.
+// A prévia de impacto é deliberadamente finita: 12 ciclos posteriores ao alterado.
+function capturarEstadoEfetivo(emp, ajustes, baseSaida, quantidadeFuturos=12) {
+  const tamanho=Number(emp.regime_trabalho)+Number(emp.regime_folga);
+  const limite=fmtISO(addDays(baseSaida,tamanho*quantidadeFuturos));
+  const mapa=new Map(ajustes.map(a=>[a.base_saida,a]));
+  const ciclos=gerarCiclosBase(emp,parseISO(baseSaida),parseISO(limite),mapa)
+    .filter(c=>c.base_saida>=baseSaida&&c.base_saida<=limite)
+    .sort((a,b)=>a.base_saida.localeCompare(b.base_saida))
+    .slice(0,quantidadeFuturos+1);
+  if(!ciclos.length||ciclos[0].base_saida!==baseSaida)throw new Error('Ciclo-base indisponível para auditoria.');
+  return ciclos.map(c=>({
+    base_saida:c.base_saida,base_retorno:c.base_retorno,
+    saida:c.nova_saida,retorno:c.novo_retorno,
+    origem:c.escopo,serie_inicio:c.serie_inicio_propria,
+    observacao:c.observacao||''
+  }));
+}
+
+function prepararAuditoriaAjuste(emp, anteriores, posteriores, baseSaida, escopoSolicitado) {
+  const ciclosAntes=capturarEstadoEfetivo(emp,anteriores,baseSaida);
+  const ciclosDepois=capturarEstadoEfetivo(emp,posteriores,baseSaida);
+  const ciclosAlterados=[];
+  for(let i=0;i<ciclosAntes.length;i++) {
+    const antes=ciclosAntes[i],depois=ciclosDepois[i];
+    if(antes.saida!==depois.saida||antes.retorno!==depois.retorno||
+       antes.origem!==depois.origem||antes.serie_inicio!==depois.serie_inicio||
+       antes.observacao!==depois.observacao) {
+      ciclosAlterados.push({base_saida:antes.base_saida,antes,depois});
+    }
+  }
+  const comum={colaborador:emp.nome,funcao:emp.funcao||'',
+    regime_trabalho:Number(emp.regime_trabalho),regime_folga:Number(emp.regime_folga)};
+  return {
+    antes:{formato:'CICLO_EFETIVO_V1',...comum,...ciclosAntes[0]},
+    depois:{formato:'CICLO_EFETIVO_V1',...comum,...ciclosDepois[0]},
+    detalhes:{
+      base_saida:baseSaida,escopo_solicitado:escopoSolicitado,
+      ciclos_seguientes_na_previa:12,
+      ciclos_efetivamente_alterados_na_previa:ciclosAlterados.length,
+      // Os próximos ciclos exibidos são uma prévia; regras recorrentes não têm fim definido.
+      previa_nao_representa_toda_a_recorrencia:true,
+      ciclos_alterados:ciclosAlterados,
+      nota:'Os ciclos posteriores são uma prévia dos 12 seguintes. O histórico não limita a duração de uma recorrência.'
+    }
+  };
+}
+
+async function gravarLogAjuste(client,req,emp,acao,registroAnterior,registroPosterior,baseSaida,ajustesAntes,ajustesDepois) {
+  const auditoria=prepararAuditoriaAjuste(emp,ajustesAntes,ajustesDepois,baseSaida,
+    acao==='REVERTER_AJUSTE'?'REVERTER':registroPosterior?.escopo||'UNICO');
+  const detalhes={...auditoria.detalhes,
+    ajuste_gravado_antes:registroAnterior||null,
+    ajuste_gravado_depois:registroPosterior||null};
   await client.query(`INSERT INTO historico_v5(colaborador_id,acao,payload) VALUES ($1,$2,$3)`,
-    [colaboradorId,acao,JSON.stringify({...details,autor_usuario:req.auth.username,autor_id:req.auth.id})]);
+    [emp.id,acao,JSON.stringify({antes:auditoria.antes,depois:auditoria.depois,
+      base_saida:baseSaida,escopo:detalhes.escopo_solicitado,
+      autor_usuario:req.auth.username,autor_id:req.auth.id})]);
   await client.query(`INSERT INTO auditoria_escala_v5
     (autor_id,autor_usuario,autor_nome,acao,entidade,entidade_id,antes,depois,detalhes)
     VALUES ($1,$2,$3,$4,'COLABORADOR',$5,$6::jsonb,$7::jsonb,$8::jsonb)`,
-    [req.auth.id,req.auth.username,req.auth.nome||'',acao,String(colaboradorId),
-      antes?JSON.stringify(antes):null,depois?JSON.stringify(depois):null,JSON.stringify({base_saida:baseSaida,escopo:details.escopo})]);
+    [req.auth.id,req.auth.username,req.auth.nome||'',acao,String(emp.id),
+      JSON.stringify(auditoria.antes),JSON.stringify(auditoria.depois),JSON.stringify(detalhes)]);
 }
 
 app.post('/api/v5/ajustes', requireEditor, async (req, res) => {
@@ -938,7 +992,8 @@ app.post('/api/v5/ajustes', requireEditor, async (req, res) => {
       observacao=excluded.observacao,escopo=excluded.escopo,atualizado_em=CURRENT_TIMESTAMP`,
       [colaboradorId,baseSaida,baseRetorno,novaSaida,novoRetorno,observacao,escopo]);
     const depois=(await client.query('SELECT * FROM ajustes_v5 WHERE colaborador_id=$1 AND base_saida=$2',[colaboradorId,baseSaida])).rows[0]||null;
-    await gravarLogAjuste(client,req,colaboradorId,'AJUSTAR_CICLO',antes,depois,baseSaida);
+    const linhasDepois=(await client.query('SELECT * FROM ajustes_v5 WHERE colaborador_id=$1 ORDER BY base_saida',[colaboradorId])).rows;
+    await gravarLogAjuste(client,req,emp,'AJUSTAR_CICLO',antes,depois,baseSaida,rows,linhasDepois);
     await client.query('COMMIT');
     res.json({ok:true,base_saida:baseSaida,base_retorno:baseRetorno,nova_saida:novaSaida,novo_retorno:novoRetorno,escopo});
   } catch(err) {
@@ -956,13 +1011,14 @@ app.delete('/api/v5/ajustes',requireEditor,async(req,res)=>{
     if(!emp || !baseCycleValid(emp,baseSaida))return res.status(400).json({erro:'Colaborador ou ciclo inválido.'});
     client=await pool.connect();await client.query('BEGIN');
     await client.query('SELECT pg_advisory_xact_lock($1::bigint)',[colaboradorId]);
-    const antes=(await client.query('SELECT * FROM ajustes_v5 WHERE colaborador_id=$1 AND base_saida=$2',[colaboradorId,baseSaida])).rows[0];
+    const linhasAntes=(await client.query('SELECT * FROM ajustes_v5 WHERE colaborador_id=$1 ORDER BY base_saida',[colaboradorId])).rows;
+    const antes=linhasAntes.find(a=>a.base_saida===baseSaida);
     if(!antes){await client.query('ROLLBACK');return res.status(404).json({erro:'Ajuste não encontrado.'});}
     const restante=(await client.query('SELECT * FROM ajustes_v5 WHERE colaborador_id=$1 AND base_saida<>$2',[colaboradorId,baseSaida])).rows;
     const conflito=conflitoCronologico(emp,restante,baseSaida);
     if(conflito){await client.query('ROLLBACK');return res.status(409).json({erro:conflito});}
     await client.query('DELETE FROM ajustes_v5 WHERE id=$1',[antes.id]);
-    await gravarLogAjuste(client,req,colaboradorId,'REVERTER_AJUSTE',antes,null,baseSaida);
+    await gravarLogAjuste(client,req,emp,'REVERTER_AJUSTE',antes,null,baseSaida,linhasAntes,restante);
     await client.query('COMMIT');res.json({ok:true,serie_removida:antes.escopo==='SEGUINTES'});
   }catch(err){if(client)await client.query('ROLLBACK').catch(()=>{});console.error('[REVERTER_AJUSTE]',err);res.status(500).json({erro:'Não foi possível reverter o ajuste.'});}
   finally{if(client)client.release();}
