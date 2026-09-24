@@ -1,8 +1,0 @@
-node_modules/
-.netlify/
-.env
-.env.*
-*.db
-*.db-shm
-*.db-wal
-npm-debug.log*
