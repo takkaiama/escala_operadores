@@ -192,6 +192,18 @@ function closeModal(id){el(id).classList.add('hidden');el(id).setAttribute('aria
 function openAdjustment(id,day){if(!canEdit()){toast('Faça login para editar a escala.');return}const e=findEmployee(id);if(!e)return;if(!e.anchor_saida){toast('Defina primeiro a data base deste colaborador.');return}state.selectedEmployee=e;el('ajusteNome').textContent=`${e.nome} · ${e.funcao||e.subtipo||''} · regime ${e.regime_trabalho}/${e.regime_folga}`;const sel=el('ajusteCiclo');sel.innerHTML=e.cycles.map((c,i)=>`<option value="${i}">${fmtBR(c.base_saida)} → ${fmtBR(c.base_retorno)}${c.adjusted?' · AJUSTADO':''}</option>`).join('');if(day){const target=`${state.data.ano}-${String(state.data.mes).padStart(2,'0')}-${String(day).padStart(2,'0')}`;let best=0,bestD=1e9;e.cycles.forEach((c,i)=>{const d=Math.abs(daysBetween(c.base_saida,target));if(d<bestD){best=i;bestD=d}});sel.value=String(best)}fillAdjustmentCycle();openModal('modalAjuste')}
 function selectedCycle(){const e=state.selectedEmployee;if(!e)return null;return e.cycles[Number(el('ajusteCiclo').value||0)]}
 function ajusteEscopoSelecionado(){return document.querySelector('input[name="ajusteEscopo"]:checked')?.value||'UNICO'}
+// Quando a nova data pertence a um ciclo posterior, a recorrência deve começar nesse
+// ciclo — nunca deslocar um ciclo de agosto para setembro e sobrescrever agosto.
+function resolverCicloPosterior(emp, cicloSelecionado, novaSaida) {
+  if (!emp || !cicloSelecionado || !/^\d{4}-\d{2}-\d{2}$/.test(novaSaida || '')) return null;
+  const limite = Number(emp.regime_trabalho) - 1;
+  const deslocamento = daysBetween(cicloSelecionado.base_saida, novaSaida);
+  if (!Number.isFinite(deslocamento) || deslocamento <= limite) return null;
+  const candidatos = emp.cycles.map((c, index) => ({ ciclo:c, index, delta:daysBetween(c.base_saida, novaSaida) }))
+    .filter(x => x.ciclo.base_saida > cicloSelecionado.base_saida && Number.isFinite(x.delta) && Math.abs(x.delta) <= limite);
+  candidatos.sort((a,b) => Math.abs(a.delta)-Math.abs(b.delta) || a.ciclo.base_saida.localeCompare(b.ciclo.base_saida));
+  return candidatos[0] || null;
+}
 function fillAdjustmentCycle(){
   const e=state.selectedEmployee,c=selectedCycle();if(!e||!c)return;
   el('originalSaida').textContent=fmtBR(c.base_saida);el('originalRetorno').textContent=fmtBR(c.base_retorno);
@@ -210,21 +222,43 @@ function updateImpact(){
   const e=state.selectedEmployee,c=selectedCycle();if(!e||!c)return;
   const nova=el('novaSaida').value,ret=el('novoRetorno').value;
   if(!nova||!ret){el('ajusteImpacto').textContent='Informe nova saída e novo retorno.';return}
-  const shift=daysBetween(c.base_saida,nova),off=daysBetween(nova,ret);
+  const recorrente=ajusteEscopoSelecionado()==='SEGUINTES';
+  const destino=recorrente?resolverCicloPosterior(e,c,nova):null;
+  const cicloEfetivo=destino?.ciclo||c;
+  const shift=daysBetween(cicloEfetivo.base_saida,nova),off=daysBetween(nova,ret);
   const newWork=(Number(e.regime_trabalho)+Number(e.regime_folga))-off;
   const delta=newWork-Number(e.regime_trabalho);
-  const recorrente=ajusteEscopoSelecionado()==='SEGUINTES';
   el('ajusteImpacto').innerHTML=`A saída foi deslocada <b>${shift>=0?'+':''}${shift} dia(s)</b>. Folga neste ciclo: <b>${off} dia(s)</b>. Trabalho no ciclo: <b>${e.regime_trabalho} → ${newWork} dia(s)</b> <span style="color:#7c3aed">(${delta>=0?'+':''}${delta})</span>. ${recorrente?'Os ciclos futuros repetirão o mesmo deslocamento.':'Somente este ciclo será modificado.'}`;
   const avisos=[];
+  if(destino)avisos.push(`A nova saída corresponde ao ciclo original ${fmtBR(destino.ciclo.base_saida)} → ${fmtBR(destino.ciclo.base_retorno)}. Ao salvar, a repetição começará NESSE ciclo; os anteriores serão preservados. Confirme a mudança no próximo passo.`);
+  else if(recorrente&&daysBetween(c.base_saida,nova)>Number(e.regime_trabalho)-1)
+    avisos.push('A data está além do ciclo selecionado e nenhum ciclo posterior compatível foi localizado nesta visualização. Selecione o mês e o ciclo corretos antes de salvar.');
   if(recorrente&&off!==Number(e.regime_folga))avisos.push(`Para repetir o ajuste, mantenha ${e.regime_folga} dias de folga; ajuste o retorno ou escolha Somente este ciclo.`);
   if(c.escopo==='HERDADO')avisos.push(`Este ciclo recebe um ajuste recorrente iniciado em ${fmtBR(c.serie_inicio_propria)}. Uma alteração pontual aqui não encerra a série.`);
   if(c.escopo==='SEGUINTES'&&!recorrente)avisos.push('Ao salvar como Somente este ciclo, a repetição anterior será encerrada a partir deste ciclo.');
   el('ajusteEscopoAviso').textContent=avisos.join(' ');
 }
 async function saveAdjustment(){return guarded('saveAdjustment',async()=>{
-  const e=state.selectedEmployee,c=selectedCycle();if(!e||!c)return;
+  const e=state.selectedEmployee,selecionado=selectedCycle();if(!e||!selecionado)return;
   const escopo=ajusteEscopoSelecionado();
-  if(escopo==='SEGUINTES'&&daysBetween(el('novaSaida').value,el('novoRetorno').value)!==Number(e.regime_folga)){
+  const novaSaida=el('novaSaida').value, novoRetorno=el('novoRetorno').value;
+  if(!novaSaida||!novoRetorno||novoRetorno<=novaSaida){toast('Informe saída e retorno válidos.');return}
+  const limite=Number(e.regime_trabalho)-1;
+  const destino=escopo==='SEGUINTES'?resolverCicloPosterior(e,selecionado,novaSaida):null;
+  if(escopo==='SEGUINTES'&&daysBetween(selecionado.base_saida,novaSaida)>limite&&!destino){
+    toast('A nova data corresponde a outro ciclo. Selecione o ciclo original do mês de início da nova recorrência.');return;
+  }
+  const c=destino?.ciclo||selecionado;
+  if(destino){
+    const substitui=destino.ciclo.adjusted?' O ajuste já existente nesse ciclo será substituído.':'';
+    if(!confirm(`A nova saída ${fmtBR(novaSaida)} pertence ao ciclo original ${fmtBR(c.base_saida)} → ${fmtBR(c.base_retorno)}.\n\nAplicar a nova programação A PARTIR DESSE CICLO, mantendo os ciclos anteriores como estão?${substitui}`))return;
+    el('ajusteCiclo').value=String(destino.index);
+    el('originalSaida').textContent=fmtBR(c.base_saida);
+    el('originalRetorno').textContent=fmtBR(c.base_retorno);
+    // Não chamar fillAdjustmentCycle: ela apagaria as datas e a observação digitadas.
+    updateImpact();
+  }
+  if(escopo==='SEGUINTES'&&daysBetween(novaSaida,novoRetorno)!==Number(e.regime_folga)){
     toast(`Para repetir, mantenha ${e.regime_folga} dias de folga.`);return;
   }
   if(c.escopo==='SEGUINTES'&&escopo==='UNICO'&&!confirm('Este ciclo iniciava uma repetição. Salvar como pontual encerrará essa repetição nos meses seguintes. Continuar?'))return;

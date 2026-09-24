@@ -49,7 +49,7 @@ test('alterar usuario protege senha e exibe mudanca de perfil',()=>{
 });
 test('tela carrega formatador antes do app e nao monta caixas JSON de auditoria',()=>{
  const html=fs.readFileSync(path.join(root,'public/index.html'),'utf8');const js=fs.readFileSync(path.join(root,'public/app.js'),'utf8');
- assert.ok(html.indexOf('audit-view.js?v=5.8.0')<html.indexOf('app.js?v=5.8.0'));
+ assert.ok(html.indexOf('audit-view.js?v=5.8.0')<html.indexOf('app.js?v=5.8.1'));
  assert.ok(js.includes('desenharResumoAuditoria(card,item)'));
  assert.ok(!js.includes('pre.textContent=value==null'));
  assert.ok(!js.includes('JSON.stringify(r.antes)'));

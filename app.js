@@ -969,8 +969,20 @@ app.post('/api/v5/ajustes', requireEditor, async (req, res) => {
     const deltaSaida=diffDays(novaSaida,baseSaida);
     const deltaRetorno=diffDays(novoRetorno,baseRetorno);
     const limite = Number(emp.regime_trabalho) - 1;
-    if (escopo === 'SEGUINTES' && (Math.abs(deltaSaida)>limite || Math.abs(deltaRetorno)>limite || deltaSaida!==deltaRetorno))
-      return res.status(400).json({erro:`Na repetição, desloque saída e retorno pelo mesmo número de dias, em até ${limite} dia(s), para não sobrepor ciclos.`});
+    if (escopo === 'SEGUINTES' && (Math.abs(deltaSaida)>limite || Math.abs(deltaRetorno)>limite || deltaSaida!==deltaRetorno)) {
+      // A recorrência não pode mover o ciclo original de agosto para setembro:
+      // setembro é outro ciclo, que deve ser escolhido como início da nova série.
+      const duracao=Number(emp.regime_trabalho)+Number(emp.regime_folga);
+      const numero=Math.round(diffDays(novaSaida,emp.anchor_saida)/duracao);
+      const cicloSugerido=fmtISO(addDays(emp.anchor_saida,numero*duracao));
+      const sugerir=cicloSugerido>baseSaida && Math.abs(diffDays(novaSaida,cicloSugerido))<=limite;
+      return res.status(400).json({
+        erro:sugerir
+          ? `A saída informada pertence ao ciclo original ${cicloSugerido}. Selecione esse ciclo para iniciar a recorrência; os anteriores serão preservados.`
+          : `Para repetir, escolha o ciclo original correspondente à nova saída e mantenha o mesmo deslocamento de saída e retorno, em até ${limite} dia(s).`,
+        ...(sugerir?{ciclo_recomendado:cicloSugerido}:{})
+      });
+    }
     const observacao=String(req.body.observacao || '').slice(0,3000);
     client=await pool.connect();
     await client.query('BEGIN');
