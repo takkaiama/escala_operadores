@@ -70,3 +70,16 @@ table{border-collapse:separate;border-spacing:0;width:max-content;min-width:100%
 .audit-impact-row{padding:8px;border:1px solid #dae1ec;border-radius:8px;display:grid;gap:3px;margin-top:6px;font-size:11px;background:#f8fafc}
 .audit-impact-row strong{font-size:12px}
 .audit-impact-row span{overflow-wrap:anywhere}
+
+/* v5.8 - historico em linguagem comum, sem caixas JSON */
+.audit-event-intro{font-size:12px;color:#40516a;line-height:1.45;margin:5px 0 9px}
+.audit-changes{border:1px solid #dce4ee;border-radius:9px;overflow:hidden;font-size:12px;margin:8px 0;display:grid;min-width:0}
+.audit-change-header,.audit-change-row{display:grid;grid-template-columns:minmax(115px,1fr) minmax(0,1.15fr) minmax(0,1.15fr);align-items:stretch}
+.audit-change-header{background:#eaf0f8;color:#334155;font-weight:800}
+.audit-change-header span,.audit-change-row span{padding:9px 10px;overflow-wrap:anywhere;text-align:left}
+.audit-change-row:nth-child(odd){background:#f8fafc}
+.audit-change-row span:first-child{font-weight:750;color:#334155}
+.audit-change-row span:nth-child(2){color:#64748b}
+.audit-change-row span:nth-child(3){color:#075985;font-weight:650}
+.audit-change-row + .audit-change-row{border-top:1px solid #e7ebf1}
+@media(max-width:650px){.audit-change-header,.audit-change-row{grid-template-columns:minmax(75px,1fr) minmax(0,1fr) minmax(0,1fr)}.audit-change-header span,.audit-change-row span{padding:7px 5px;font-size:11px}}

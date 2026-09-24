@@ -83,31 +83,23 @@ async function changeUserRole(id,current){const next=current==='ADMIN'?'USUARIO'
 async function toggleUser(id,active){const next=!active;if(!confirm(`${next?'Ativar':'Desativar'} este acesso?`))return;try{await request(`${API}/usuarios/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({ativo:next})});toast(next?'Acesso ativado.':'Acesso desativado.');await loadUsers()}catch(err){toast(err.message)}}
 
 
-// Exibição operacional do estado efetivo; o JSON técnico fica acessível em Detalhes.
-function dataLogBR(iso){return /^\d{4}-\d{2}-\d{2}$/.test(iso||'')?fmtBR(iso):iso||'—'}
-function formatarEstadoCiclo(value){
-  const dias=Number(value.regime_trabalho),folga=Number(value.regime_folga);
-  return [
-    ['Colaborador',value.colaborador],['Função',value.funcao],
-    ['Ciclo original',dataLogBR(value.base_saida)+' → '+dataLogBR(value.base_retorno)],
-    ['Saída efetiva',dataLogBR(value.saida)],['Retorno efetivo',dataLogBR(value.retorno)],
-    ['Regime',`${dias} dias de trabalho / ${folga} dias de folga`],
-    ['Origem',({ORIGINAL:'Programação original',UNICO:'Ajuste deste ciclo',SEGUINTES:'Início de série recorrente',HERDADO:'Herdado de série anterior'})[value.origem]||value.origem],
-    ...(value.serie_inicio?[['Série iniciada em',dataLogBR(value.serie_inicio)]]:[]),
-    ...(value.observacao?[['Observação',value.observacao]]:[])
-  ];
-}
-function desenharEstadoAuditoria(col,value){
-  if(value?.formato==='CICLO_EFETIVO_V1'){
-    const quadro=document.createElement('dl');quadro.className='audit-state';
-    for(const [nome,valor] of formatarEstadoCiclo(value)){
-      const dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=nome;dd.textContent=valor??'—';quadro.append(dt,dd);
+// Exibicao em linguagem comum; os dados historicos originais continuam preservados no banco.
+function dataLogBR(value){return AuditView.dateBR(value||'')||'—'}
+function desenharResumoAuditoria(card,item){
+  const info=AuditView.getView(item);
+  const p=document.createElement('p');p.className='audit-event-intro';p.textContent=info.intro;card.append(p);
+  if(info.rows.length){
+    const table=document.createElement('div');table.className='audit-changes';table.setAttribute('role','table');
+    const heading=document.createElement('div');heading.className='audit-change-header';heading.setAttribute('role','row');
+    for(const t of ['Informação','Antes','Depois']){const cell=document.createElement('span');cell.textContent=t;cell.setAttribute('role','columnheader');heading.append(cell)}
+    table.append(heading);
+    for(const r of info.rows){const line=document.createElement('div');line.className='audit-change-row';line.setAttribute('role','row');
+      for(const v of [r.label,r.before,r.after]){const cell=document.createElement('span');cell.textContent=v;cell.setAttribute('role','cell');line.append(cell)}
+      table.append(line);
     }
-    col.append(quadro);
-  }else{
-    const pre=document.createElement('pre');
-    pre.textContent=value==null?'—':JSON.stringify(value,null,2);col.append(pre);
+    card.append(table);
   }
+  if(info.note){const note=document.createElement('p');note.className='audit-note';note.textContent=info.note;card.append(note)}
 }
 function desenharImpactoAuditoria(card,detalhes){
   if(!Array.isArray(detalhes?.ciclos_alterados))return;
@@ -122,8 +114,8 @@ function desenharImpactoAuditoria(card,detalhes){
   for(const c of ciclos){
     const linha=document.createElement('div');linha.className='audit-impact-row';
     const title=document.createElement('strong');title.textContent=`Ciclo ${dataLogBR(c.base_saida)}`;linha.append(title);
-    const anteriores=document.createElement('span');anteriores.textContent=`ANTES: ${dataLogBR(c.antes.saida)} → ${dataLogBR(c.antes.retorno)} (${c.antes.origem})`;
-    const posteriores=document.createElement('span');posteriores.textContent=`DEPOIS: ${dataLogBR(c.depois.saida)} → ${dataLogBR(c.depois.retorno)} (${c.depois.origem})`;
+    const anteriores=document.createElement('span');anteriores.textContent=`ANTES: ${dataLogBR(c.antes.saida)} → ${dataLogBR(c.antes.retorno)} (${AuditView.show('origem',c.antes.origem)})`;
+    const posteriores=document.createElement('span');posteriores.textContent=`DEPOIS: ${dataLogBR(c.depois.saida)} → ${dataLogBR(c.depois.retorno)} (${AuditView.show('origem',c.depois.origem)})`;
     linha.append(anteriores,posteriores);d.append(linha);
   }
   card.append(d);
@@ -144,21 +136,11 @@ async function carregarAuditoria(pagina){
       const card=document.createElement('article');card.className='audit-entry';
       const head=document.createElement('div');head.className='audit-entry-header';
       const stamp=new Date(item.criado_em).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit'});
-      const rotulo={AJUSTAR_CICLO:'AJUSTE DE CICLO',REVERTER_AJUSTE:'REVERSÃO DE AJUSTE'}[item.acao]||item.acao;
-      head.textContent=`${stamp} · ${item.autor_usuario} · ${rotulo} · ${item.antes?.colaborador||item.depois?.colaborador||item.entidade+' '+(item.entidade_id||'')}`;card.append(head);
-      const grid=document.createElement('div');grid.className='audit-compare';
-      for(const [label,value] of [['ANTES',item.antes],['DEPOIS',item.depois]]){
-        const col=document.createElement('div'),title=document.createElement('strong');title.textContent=label;
-        col.append(title);desenharEstadoAuditoria(col,value);grid.append(col);
-      }
-      card.append(grid);
-      if(item.acao==='AJUSTAR_CICLO'&&item.antes==null){const nota=document.createElement('p');nota.className='audit-note';nota.textContent='Registro antigo: a programação efetiva anterior não foi armazenada neste evento. Ela não pode ser reconstruída com segurança apenas a partir do log.';card.append(nota)}
+      const resumo=AuditView.getView(item);
+      head.textContent=`${stamp} · ${item.autor_usuario} · ${resumo.title} · ${resumo.subject}`;card.append(head);
+      desenharResumoAuditoria(card,item);
       desenharImpactoAuditoria(card,item.detalhes);
-      if(item.detalhes&&Object.keys(item.detalhes).length){
-        const d=document.createElement('details'),summary=document.createElement('summary'),pre=document.createElement('pre');
-        summary.textContent='Dados técnicos do evento';pre.textContent=JSON.stringify(item.detalhes,null,2);
-        d.append(summary,pre);card.append(d);
-      }
+      // Os detalhes operacionais ja sao mostrados de forma legivel acima.
       box.append(card);
     }
     el('auditPaginacao').textContent=`Página ${paginaAuditoria+1} de ${Math.max(1,Math.ceil(totalAuditoria/100))}`;
@@ -168,8 +150,8 @@ async function carregarAuditoria(pagina){
 function limparAuditoria(){for(const id of ['auditUsuario','auditAcao','auditInicio','auditFim'])el(id).value='';carregarAuditoria(0)}
 function baixarAuditoriaCSV(){
   if(!logsAuditoria.length){toast('Nenhum registro nesta página.');return;}
-  const esc=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
-  const rows=[['Data/hora (Brasília)','Usuário','Ação','Entidade','Identificador','Antes','Depois','Detalhes'],...logsAuditoria.map(r=>[new Date(r.criado_em).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'}),r.autor_usuario,r.acao,r.entidade,r.entidade_id,JSON.stringify(r.antes),JSON.stringify(r.depois),JSON.stringify(r.detalhes)])];
+  const esc=v=>{const raw=String(v??'');const safe=/^[\s]*[=+@\-\t\r]/.test(raw)?'\''+raw:raw;return '"'+safe.replace(/"/g,'""')+'"'};
+  const rows=[['Data/hora (Brasília)','Responsável','Atividade','Referência','Descrição','Antes','Depois'],...logsAuditoria.map(r=>{const v=AuditView.extraCsv(r);const d=AuditView.getView(r);return [new Date(r.criado_em).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'}),r.autor_usuario,d.title,d.subject,v.summary,v.before,v.after]})];
   downloadBlob(new Blob(['\uFEFF'+rows.map(row=>row.map(esc).join(';')).join('\r\n')],{type:'text/csv;charset=utf-8'}),`escala_biotec_log_pagina_${paginaAuditoria+1}.csv`);
 }
 
