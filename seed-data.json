@@ -1,0 +1,567 @@
+{
+  "version": "5.1.0",
+  "drivers": [
+    {
+      "name": "ANDRE DUTRA DA SILVA",
+      "subtype": "FIXO",
+      "work_days": 23,
+      "off_days": 7,
+      "anchor_exit": "2026-09-05",
+      "source": "Escala dos Motoristas - AGOSTO (2026-08-13 a 2026-09-11)"
+    },
+    {
+      "name": "EDIVALDO DA CONCEICAO",
+      "subtype": "FIXO",
+      "work_days": 23,
+      "off_days": 7,
+      "anchor_exit": "2026-09-09",
+      "source": "Escala dos Motoristas - AGOSTO (2026-08-17 a 2026-09-15)"
+    },
+    {
+      "name": "FRANCISCO ARAUJO FILHO",
+      "subtype": "FIXO",
+      "work_days": 23,
+      "off_days": 7,
+      "anchor_exit": "2026-09-16",
+      "source": "Escala dos Motoristas - AGOSTO (2026-08-24 a 2026-09-22)"
+    },
+    {
+      "name": "FRANCISCO COSTA CARVALHO",
+      "subtype": "FIXO",
+      "work_days": 23,
+      "off_days": 7,
+      "anchor_exit": "2026-08-24",
+      "source": "Escala dos Motoristas - AGOSTO (2026-08-01 a 2026-08-30)"
+    },
+    {
+      "name": "JAGNO COSTA DA SILVA",
+      "subtype": "FIXO",
+      "work_days": 23,
+      "off_days": 7,
+      "anchor_exit": "2026-09-16",
+      "source": "Escala dos Motoristas - AGOSTO (2026-08-24 a 2026-09-22)"
+    },
+    {
+      "name": "JAIME FRANCISCO GOES NETO",
+      "subtype": "FOLGUISTA",
+      "work_days": 23,
+      "off_days": 7,
+      "anchor_exit": "2026-08-24",
+      "source": "Escala dos Motoristas - AGOSTO (2026-08-01 a 2026-08-30)"
+    },
+    {
+      "name": "JOELSON TORQUATO DA SILVA",
+      "subtype": "FIXO",
+      "work_days": 23,
+      "off_days": 7,
+      "anchor_exit": "2026-09-02",
+      "source": "Escala dos Motoristas - AGOSTO (2026-08-10 a 2026-09-08)"
+    },
+    {
+      "name": "JOSE ALEX PEREIRA DA SILVA",
+      "subtype": "FIXO",
+      "work_days": 23,
+      "off_days": 7,
+      "anchor_exit": "2026-09-16",
+      "source": "Escala dos Motoristas - AGOSTO (2026-08-24 a 2026-09-22)"
+    },
+    {
+      "name": "JOSE ERO GOMES CARREIRO",
+      "subtype": "FOLGUISTA",
+      "work_days": 23,
+      "off_days": 7,
+      "anchor_exit": "2026-09-11",
+      "source": "Escala dos Motoristas - AGOSTO (2026-08-19 a 2026-09-17)"
+    },
+    {
+      "name": "JOSE KLEVE DUARTE DE SOUSA",
+      "subtype": "FIXO",
+      "work_days": 23,
+      "off_days": 7,
+      "anchor_exit": "2026-11-01",
+      "source": "Escala dos Motoristas - SETEMBR (2026-10-09 a 2026-11-07)"
+    },
+    {
+      "name": "JOSE MARIA SOUSA ALMEIDA",
+      "subtype": "FIXO",
+      "work_days": 23,
+      "off_days": 7,
+      "anchor_exit": "2026-08-20",
+      "source": "Escala dos Motoristas - AGOSTO (2026-07-28 a 2026-08-26)"
+    },
+    {
+      "name": "JOSE NETO DE SOUSA",
+      "subtype": "FIXO",
+      "work_days": 23,
+      "off_days": 7,
+      "anchor_exit": "2026-06-19",
+      "source": "Escala dos Motoristas - AGOSTO (2026-05-27 a 2026-06-25)"
+    },
+    {
+      "name": "JOSIMAR BUENO CARVALHO",
+      "subtype": "FIXO",
+      "work_days": 23,
+      "off_days": 7,
+      "anchor_exit": "2026-08-24",
+      "source": "Escala dos Motoristas - AGOSTO (2026-08-01 a 2026-08-30)"
+    },
+    {
+      "name": "JOSUE FERREIR DA SILVA",
+      "subtype": "FIXO",
+      "work_days": 23,
+      "off_days": 7,
+      "anchor_exit": "2026-09-24",
+      "source": "Escala dos Motoristas - SETEMBR (2026-09-01 a 2026-09-30)"
+    },
+    {
+      "name": "JULIO CESAR RODRIGUES DA SILVA",
+      "subtype": "FIXO",
+      "work_days": 23,
+      "off_days": 7,
+      "anchor_exit": "2026-09-01",
+      "source": "Escala dos Motoristas - AGOSTO (2026-08-09 a 2026-09-07)"
+    },
+    {
+      "name": "LAURITINO CARDOSO MIRANDA",
+      "subtype": "FOLGUISTA",
+      "work_days": 23,
+      "off_days": 7,
+      "anchor_exit": "2026-08-26",
+      "source": "Escala dos Motoristas - AGOSTO (2026-08-03 a 2026-09-01)"
+    },
+    {
+      "name": "LEOMAR PEREIRA DA SILVA",
+      "subtype": "FIXO",
+      "work_days": 23,
+      "off_days": 7,
+      "anchor_exit": "2026-08-23",
+      "source": "Escala dos Motoristas - AGOSTO (2026-07-31 a 2026-08-29)"
+    },
+    {
+      "name": "LINDOMAR ALVES FEITOSA",
+      "subtype": "FIXO",
+      "work_days": 23,
+      "off_days": 7,
+      "anchor_exit": "2026-09-18",
+      "source": "Escala dos Motoristas - AGOSTO (2026-08-26 a 2026-09-24)"
+    },
+    {
+      "name": "LUIZ MANOEL DO NASCIMENTO",
+      "subtype": "FIXO",
+      "work_days": 23,
+      "off_days": 7,
+      "anchor_exit": "2026-09-24",
+      "source": "Escala dos Motoristas - AGOSTO (2026-09-01 a 2026-09-30)"
+    },
+    {
+      "name": "MANOEL MESSIAS PEREIRA DE BRITO",
+      "subtype": "FIXO",
+      "work_days": 23,
+      "off_days": 7,
+      "anchor_exit": "2026-09-15",
+      "source": "Escala dos Motoristas - AGOSTO (2026-08-23 a 2026-09-21)"
+    },
+    {
+      "name": "MARCIO DA SILVA MARINHO",
+      "subtype": "FIXO",
+      "work_days": 23,
+      "off_days": 7,
+      "anchor_exit": "2026-08-24",
+      "source": "Escala dos Motoristas - AGOSTO (2026-08-01 a 2026-08-30)"
+    },
+    {
+      "name": "MARCONDES DE BRITO RIBEIRO",
+      "subtype": "FIXO",
+      "work_days": 23,
+      "off_days": 7,
+      "anchor_exit": "2026-08-26",
+      "source": "Escala dos Motoristas - AGOSTO (2026-08-03 a 2026-09-01)"
+    },
+    {
+      "name": "MARIVALDO MARTINS DE ALMEIDA",
+      "subtype": "FIXO",
+      "work_days": 23,
+      "off_days": 7,
+      "anchor_exit": "2026-09-02",
+      "source": "Escala dos Motoristas - AGOSTO (2026-08-10 a 2026-09-08)"
+    },
+    {
+      "name": "MAURISVANYA SILVA FRANCA",
+      "subtype": "FIXO",
+      "work_days": 23,
+      "off_days": 7,
+      "anchor_exit": "2026-09-10",
+      "source": "Escala dos Motoristas - AGOSTO (2026-08-18 a 2026-09-16)"
+    },
+    {
+      "name": "MAURO HENRIQUE DA SILVA",
+      "subtype": "FOLGUISTA",
+      "work_days": 23,
+      "off_days": 7,
+      "anchor_exit": "2026-08-29",
+      "source": "Escala dos Motoristas - AGOSTO (2026-08-06 a 2026-09-04)"
+    },
+    {
+      "name": "PEDRO COSTA CARVALHO",
+      "subtype": "FIXO",
+      "work_days": 23,
+      "off_days": 7,
+      "anchor_exit": "2026-09-02",
+      "source": "Escala dos Motoristas - AGOSTO (2026-08-10 a 2026-09-08)"
+    },
+    {
+      "name": "RAIMUNDO NONATO DOS SANTOS",
+      "subtype": "FIXO",
+      "work_days": 23,
+      "off_days": 7,
+      "anchor_exit": "2026-08-24",
+      "source": "Escala dos Motoristas - AGOSTO (2026-08-01 a 2026-08-30)"
+    },
+    {
+      "name": "RENATO DA SILVA PEREIRA",
+      "subtype": "FOLGUISTA",
+      "work_days": 23,
+      "off_days": 7,
+      "anchor_exit": "2026-08-24",
+      "source": "Escala dos Motoristas - AGOSTO (2026-08-01 a 2026-08-30)"
+    },
+    {
+      "name": "RIVALDO OLIVEIRA FONSECA",
+      "subtype": "FIXO",
+      "work_days": 23,
+      "off_days": 7,
+      "anchor_exit": "2026-11-01",
+      "source": "Escala dos Motoristas - SETEMBR (2026-10-09 a 2026-11-07)"
+    },
+    {
+      "name": "RONILSON NONATO MIRANDA",
+      "subtype": "FIXO",
+      "work_days": 23,
+      "off_days": 7,
+      "anchor_exit": "2026-09-05",
+      "source": "Escala dos Motoristas - AGOSTO (2026-08-13 a 2026-09-11)"
+    },
+    {
+      "name": "ROSIVALDO CHAVES DA SILVA",
+      "subtype": "FIXO",
+      "work_days": 23,
+      "off_days": 7,
+      "anchor_exit": "2026-09-10",
+      "source": "Escala dos Motoristas - AGOSTO (2026-08-18 a 2026-09-16)"
+    },
+    {
+      "name": "SERGIO MORAIS AGUIAR",
+      "subtype": "FOLGUISTA",
+      "work_days": 23,
+      "off_days": 7,
+      "anchor_exit": "2026-09-10",
+      "source": "Escala dos Motoristas - AGOSTO (2026-08-18 a 2026-09-16)"
+    },
+    {
+      "name": "SERGIO VENICIUS NOLETO DE MOAIS",
+      "subtype": "FERISTA",
+      "work_days": 23,
+      "off_days": 7,
+      "anchor_exit": "2026-09-16",
+      "source": "Escala dos Motoristas - AGOSTO (2026-08-24 a 2026-09-22)"
+    },
+    {
+      "name": "TIBUCIO JOSE DE SOUSA NETO",
+      "subtype": "FIXO",
+      "work_days": 23,
+      "off_days": 7,
+      "anchor_exit": "2026-09-15",
+      "source": "Escala dos Motoristas - AGOSTO (2026-08-23 a 2026-09-21)"
+    },
+    {
+      "name": "VAGNER NATIVIDADE CARDOSO",
+      "subtype": "FIXO",
+      "work_days": 23,
+      "off_days": 7,
+      "anchor_exit": "2026-09-16",
+      "source": "Escala dos Motoristas - AGOSTO (2026-08-24 a 2026-09-22)"
+    },
+    {
+      "name": "VALDONEZ PEREIRA DE SOUSA",
+      "subtype": "FIXO",
+      "work_days": 23,
+      "off_days": 7,
+      "anchor_exit": "2026-09-08",
+      "source": "Escala dos Motoristas - AGOSTO (2026-08-16 a 2026-09-14)"
+    },
+    {
+      "name": "WANDERSON JARDIM MACIEL",
+      "subtype": "FIXO",
+      "work_days": 23,
+      "off_days": 7,
+      "anchor_exit": "2026-09-09",
+      "source": "Escala dos Motoristas - AGOSTO (2026-08-17 a 2026-09-15)"
+    }
+  ],
+  "operators": [
+    {
+      "name": "LUCAS SILVA",
+      "role": "PICADOR",
+      "work_days": 24,
+      "off_days": 6,
+      "anchor_exit": "2026-08-31",
+      "source": "Escala Organizada - SINCRONIZADO"
+    },
+    {
+      "name": "LEANDRO",
+      "role": "PC",
+      "work_days": 24,
+      "off_days": 6,
+      "anchor_exit": "2026-08-31",
+      "source": "Escala Organizada - SINCRONIZADO"
+    },
+    {
+      "name": "A CONTRATAR",
+      "role": "PICADOR",
+      "work_days": 24,
+      "off_days": 6,
+      "anchor_exit": "2026-09-07",
+      "source": "Escala Organizada - SINCRONIZADO"
+    },
+    {
+      "name": "LUIS HENRIQUE",
+      "role": "PC",
+      "work_days": 24,
+      "off_days": 6,
+      "anchor_exit": "2026-09-07",
+      "source": "Escala Organizada - SINCRONIZADO"
+    },
+    {
+      "name": "DIEGO",
+      "role": "PICADOR",
+      "work_days": 24,
+      "off_days": 6,
+      "anchor_exit": "2026-09-12",
+      "source": "Escala Organizada - SINCRONIZADO"
+    },
+    {
+      "name": "EDUARDO",
+      "role": "PC",
+      "work_days": 24,
+      "off_days": 6,
+      "anchor_exit": "2026-09-12",
+      "source": "Escala Organizada - SINCRONIZADO"
+    },
+    {
+      "name": "EZIO HENRIQUE",
+      "role": "PICADOR",
+      "work_days": 24,
+      "off_days": 6,
+      "anchor_exit": "2026-09-14",
+      "source": "Escala Organizada - SINCRONIZADO"
+    },
+    {
+      "name": "JOSIMAR JUNIOR",
+      "role": "PC",
+      "work_days": 24,
+      "off_days": 6,
+      "anchor_exit": "2026-09-14",
+      "source": "Escala Organizada - SINCRONIZADO"
+    },
+    {
+      "name": "RAFAEL NOGUEIRA",
+      "role": "PICADOR",
+      "work_days": 24,
+      "off_days": 6,
+      "anchor_exit": "2026-09-19",
+      "source": "Escala Organizada - SINCRONIZADO"
+    },
+    {
+      "name": "FRANCISCO GABRIEL",
+      "role": "PC",
+      "work_days": 24,
+      "off_days": 6,
+      "anchor_exit": "2026-09-19",
+      "source": "Escala Organizada - AJUSTE TRANSITÓRIO"
+    },
+    {
+      "name": "FRANCIVALDO - NOVATO",
+      "role": "PC",
+      "work_days": 24,
+      "off_days": 6,
+      "anchor_exit": null,
+      "source": "Escala Organizada - sem observação"
+    },
+    {
+      "name": "DANILO - NOVATO",
+      "role": "PC",
+      "work_days": 24,
+      "off_days": 6,
+      "anchor_exit": null,
+      "source": "Escala Organizada - sem observação"
+    },
+    {
+      "name": "HERNANDO",
+      "role": "PICADOR",
+      "work_days": 24,
+      "off_days": 6,
+      "anchor_exit": null,
+      "source": "Escala Organizada - sem observação"
+    },
+    {
+      "name": "PEDRO HENRIQUE",
+      "role": "PICADOR",
+      "work_days": 24,
+      "off_days": 6,
+      "anchor_exit": null,
+      "source": "Escala Organizada - sem observação"
+    },
+    {
+      "name": "CASSIO",
+      "role": "PICADOR",
+      "work_days": 24,
+      "off_days": 6,
+      "anchor_exit": "2026-08-28",
+      "source": "Escala Organizada - MANTIDO"
+    },
+    {
+      "name": "HELIO",
+      "role": "PICADOR",
+      "work_days": 24,
+      "off_days": 6,
+      "anchor_exit": "2026-09-06",
+      "source": "Escala Organizada - MANTIDO"
+    },
+    {
+      "name": "ISMAEL",
+      "role": "PICADOR",
+      "work_days": 24,
+      "off_days": 6,
+      "anchor_exit": "2026-09-15",
+      "source": "Escala Organizada - MANTIDO"
+    },
+    {
+      "name": "ANTONIO CARVALHO",
+      "role": "FELLER",
+      "work_days": 24,
+      "off_days": 6,
+      "anchor_exit": "2026-08-24",
+      "source": "Escala Organizada - 24x6 NORMAL"
+    },
+    {
+      "name": "MAILSON",
+      "role": "FELLER",
+      "work_days": 24,
+      "off_days": 6,
+      "anchor_exit": "2026-08-30",
+      "source": "Escala Organizada - 24x6 NORMAL"
+    },
+    {
+      "name": "ELTON CARVALHO",
+      "role": "FELLER",
+      "work_days": 24,
+      "off_days": 6,
+      "anchor_exit": "2026-09-05",
+      "source": "Escala Organizada - 24x6 NORMAL"
+    },
+    {
+      "name": "OSMIVAN LACERDA",
+      "role": "FELLER",
+      "work_days": 24,
+      "off_days": 6,
+      "anchor_exit": "2026-09-10",
+      "source": "Escala Organizada - 24x6 NORMAL"
+    },
+    {
+      "name": "WEVERTON",
+      "role": "FELLER",
+      "work_days": 24,
+      "off_days": 6,
+      "anchor_exit": "2026-09-12",
+      "source": "Escala Organizada - 24x6 NORMAL"
+    },
+    {
+      "name": "VALMIR",
+      "role": "FELLER",
+      "work_days": 24,
+      "off_days": 6,
+      "anchor_exit": "2026-09-18",
+      "source": "Escala Organizada - 24x6 NORMAL"
+    },
+    {
+      "name": "RENILDO",
+      "role": "FELLER",
+      "work_days": 24,
+      "off_days": 6,
+      "anchor_exit": "2026-09-26",
+      "source": "Escala Organizada - 24x6 NORMAL"
+    },
+    {
+      "name": "EDSON ARAÚJO",
+      "role": "SKIDDER",
+      "work_days": 24,
+      "off_days": 6,
+      "anchor_exit": "2026-08-28",
+      "source": "Escala Organizada - 24x6 NORMAL"
+    },
+    {
+      "name": "REGINALDO",
+      "role": "SKIDDER",
+      "work_days": 24,
+      "off_days": 6,
+      "anchor_exit": "2026-08-30",
+      "source": "Escala Organizada - 24x6 NORMAL"
+    },
+    {
+      "name": "FRANCISCO CUNHA",
+      "role": "SKIDDER",
+      "work_days": 24,
+      "off_days": 6,
+      "anchor_exit": "2026-09-02",
+      "source": "Escala Organizada - 24x6 NORMAL"
+    },
+    {
+      "name": "JAILTON",
+      "role": "SKIDDER",
+      "work_days": 24,
+      "off_days": 6,
+      "anchor_exit": "2026-09-03",
+      "source": "Escala Organizada - 24x6 NORMAL"
+    },
+    {
+      "name": "PAULO HENRIQUE",
+      "role": "SKIDDER",
+      "work_days": 24,
+      "off_days": 6,
+      "anchor_exit": "2026-09-05",
+      "source": "Escala Organizada - 24x6 NORMAL"
+    },
+    {
+      "name": "ANTONIO CONCEIÇÃO",
+      "role": "SKIDDER",
+      "work_days": 24,
+      "off_days": 6,
+      "anchor_exit": "2026-09-07",
+      "source": "Escala Organizada - 24x6 NORMAL"
+    },
+    {
+      "name": "OZIEL NASCIMENTO",
+      "role": "SKIDDER",
+      "work_days": 24,
+      "off_days": 6,
+      "anchor_exit": "2026-09-17",
+      "source": "Escala Organizada - 24x6 NORMAL"
+    },
+    {
+      "name": "ABIMAEL GOMES",
+      "role": "SKIDDER",
+      "work_days": 24,
+      "off_days": 6,
+      "anchor_exit": "2026-09-19",
+      "source": "Escala Organizada - 24x6 NORMAL"
+    },
+    {
+      "name": "MATEUS",
+      "role": "SKIDDER",
+      "work_days": 24,
+      "off_days": 6,
+      "anchor_exit": null,
+      "source": "Escala Organizada - PENDENTE DE DATAS"
+    }
+  ]
+}
